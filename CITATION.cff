@@ -4,6 +4,17 @@ title: "Physics-Data Soft Fusion Robust Synthesis for Rotorcraft with Certified 
 authors:
   - family-names: Shen
     given-names: Mingjie
+  - family-names: Song
+    given-names: Jiacheng
+    orcid: "https://orcid.org/0000-0003-3576-9605"
+  - family-names: Zhang
+    given-names: Yanan
+  - family-names: Cao
+    given-names: Yuan
+  - family-names: Wu
+    given-names: Tingting
+  - family-names: Song
+    given-names: Huaibo
 repository-code: "https://github.com/769222452/Physics-Data-Soft-Fusion-Robust-Synthesis-for-Rotorcraft-with-Certified-Subpolytope-Guarantees"
 license: Apache-2.0
 date-released: "2026-07-08"
