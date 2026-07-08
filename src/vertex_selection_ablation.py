@@ -872,9 +872,8 @@ def farthest_point_select_vertices(
     return sorted(selected)
 
 
-# and all main scripts in this repository use mode="lambda_max" exclusively. The other
-# modes are retained only for legacy reproducibility of internal experiments and have
-# NOT been re-validated end-to-end; do not rely on them in production.
+# All manuscript scripts use mode="lambda_max". Alternative score modes are
+# retained for method-comparison checks and are not used for the reported results.
 def compute_vertex_score_scalar(
         Delta_i: np.ndarray,
         Psi_data: np.ndarray,
@@ -2002,7 +2001,7 @@ def verify_and_classify(
 
     cls_s1 = classify_synthesis(True, max_viol, n_viol, tol)
 
-    # P1-3: "relaxed_verified" / "near_relaxed" replace the legacy "certified" /
+    # P1-3: "relaxed_verified" / "near_relaxed" replace the earlier "certified" /
     # "near_feasible" tokens so that the log/return values do not collide with
     # the paper's hard-certified subpolytope (which only covers score-zero vertices).
     if cls_s1 == "relaxed_verified":
@@ -2329,7 +2328,7 @@ def simulate_tracking_with_disturbance_profile(
         noise_seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     Ts, g = syn.Ts, syn.g
-    # P1.8: accept an explicit per-trial noise seed; fall back to the legacy fixed seed
+    # P1.8: accept an explicit per-trial noise seed; fall back to the default fixed seed
     # when None for backward compatibility (single-trial Stage-3 time-domain study).
     rng = np.random.default_rng(syn.seed + 2026 if noise_seed is None else int(noise_seed))
 

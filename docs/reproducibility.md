@@ -46,9 +46,20 @@ python src/fusion_ablation.py
 python src/vertex_selection_ablation.py
 ```
 
-The scripts create local output directories at runtime. Existing curated
-outputs are retained under `results/` so that manuscript figures and tables can
-be checked without rerunning all SDP computations.
+The scripts create local output directories under `simulation_results/` at
+runtime:
+
+| Script | Runtime output directory |
+| --- | --- |
+| `src/time_domain_standard.py` | `simulation_results/2D/` |
+| `src/time_domain_expanded.py` | `simulation_results/time-new-ex/` |
+| `src/fusion_ablation.py` | `simulation_results/monclo_Result/` |
+| `src/vertex_selection_ablation.py` | `simulation_results/monclo_pointsResult/` |
+
+Existing curated outputs are retained under `results/` so that manuscript
+figures and tables can be checked without rerunning all SDP computations. Full
+SDP and Monte Carlo reruns can take substantial time depending on hardware and
+MOSEK configuration.
 
 ## Random Seeds and Numerical Solvers
 

@@ -765,7 +765,7 @@ def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_ove
     d_max = d_max_override if d_max_override is not None else syn.d_max
     # P0-1 (paper eq:Rtilde_def): \tilde R_t = 2 * diag(L d_max^2 W_c, 0_{16}) + 2 * W_E.
     # Prefer the PSD-domination upper bound W_c supplied by the caller; fall back to
-    # the legacy entry-wise S_c S_c^T construction only when no W_c is provided.
+    # the fallback entry-wise S_c S_c^T construction only when no W_c is provided.
     W_c_supplied = batch.get("W_c", None)
     if W_c_supplied is not None:
         Wc_block = np.asarray(W_c_supplied, dtype=float)
@@ -957,9 +957,8 @@ def farthest_point_select_vertices(
     return sorted(selected)
 
 
-# and all main scripts in this repository use mode="lambda_max" exclusively. The other
-# modes are retained only for legacy reproducibility of internal experiments and have
-# NOT been re-validated end-to-end; do not rely on them in production.
+# All manuscript scripts use mode="lambda_max". Alternative score modes are
+# retained for method-comparison checks and are not used for the reported results.
 def compute_vertex_score_scalar(
         Delta_i: np.ndarray,
         Psi_data: np.ndarray,
@@ -2182,7 +2181,7 @@ def simulate_tracking_with_disturbance_profile(
         noise_seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     Ts, g = syn.Ts, syn.g
-    # P1.8: accept an explicit per-trial noise seed; fall back to the legacy fixed seed
+    # P1.8: accept an explicit per-trial noise seed; fall back to the default fixed seed
     # when None for backward compatibility (single-trial Stage-3 time-domain study).
     rng = np.random.default_rng(syn.seed + 2026 if noise_seed is None else int(noise_seed))
 
@@ -3117,7 +3116,7 @@ def synthesize_controllers_for_stage3(
           f"W_E^z = 0 (Z_t deterministic from X_t, U_t)")
 
     # --- Build Psi using full batch ---
-    batch["S_c"] = S_worst       # legacy entry-wise S_c (kept for any consumer that still reads it)
+    batch["S_c"] = S_worst       # fallback entry-wise S_c for compatibility with saved records
     batch["W_c"] = W_c           # P0.2: PSD upper bound used by build_psi_data
     batch["W_E"] = W_E           # P0-1: structured residual upper bound used by build_psi_data
     Psi = build_psi_data(batch, syn)

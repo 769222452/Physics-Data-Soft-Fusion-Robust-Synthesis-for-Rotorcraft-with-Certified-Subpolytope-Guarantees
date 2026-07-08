@@ -58,9 +58,9 @@ python src/vertex_selection_ablation.py
 ```
 
 The scripts write regenerated outputs to local result folders created at
-runtime. The `results/` directory stores curated output files corresponding
-to the manuscript checks, and `logs/` stores reference console logs from the
-reported runs.
+runtime under `simulation_results/`. The `results/` directory stores curated
+output files corresponding to the manuscript figures and tables, and `logs/`
+stores reference console logs from the reported runs.
 
 More detailed reproduction notes are provided in
 [`docs/reproducibility.md`](docs/reproducibility.md).
