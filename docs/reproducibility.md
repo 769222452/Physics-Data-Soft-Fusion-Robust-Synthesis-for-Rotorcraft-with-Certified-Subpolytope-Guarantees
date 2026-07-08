@@ -33,8 +33,7 @@ $env:MOSEKLM_LICENSE_FILE = "C:\path\to\mosek.lic"
 | `src/time_domain_standard.py` | Standard time-domain tracking study | `results/figures/time_domain_standard/`, `results/tables/time_domain_standard_metrics.csv` |
 | `src/time_domain_expanded.py` | Expanded time-domain tracking study | `results/figures/time_domain_expanded/`, `results/tables/time_domain_expanded_metrics.csv` |
 | `src/fusion_ablation.py` | Monte Carlo soft-fusion ablation | `results/figures/monte_carlo/` |
-| `src/vertex_selection_ablation.py` | Vertex-selection ablation | `results/figures/vertex_selection/`, `results/tables/vertex_selection_tables.tex` |
-| `src/geometry_diagnostics.py` | Geometry diagnostics for selected parameter slices | Diagnostic figures generated at runtime |
+| `src/vertex_selection_ablation.py` | Vertex-selection ablation | `results/tables/vertex_selection_tables.tex` |
 
 ## Running the Studies
 
@@ -45,7 +44,6 @@ python src/time_domain_standard.py
 python src/time_domain_expanded.py
 python src/fusion_ablation.py
 python src/vertex_selection_ablation.py
-python src/geometry_diagnostics.py
 ```
 
 The scripts create local output directories at runtime. Existing curated

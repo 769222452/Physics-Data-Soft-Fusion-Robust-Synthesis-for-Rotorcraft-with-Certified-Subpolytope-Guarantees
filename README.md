@@ -8,8 +8,7 @@ Subpolytope Guarantees**.
 
 The code implements the numerical studies reported in the manuscript,
 including time-domain tracking simulations, Monte Carlo fusion ablations,
-vertex-selection studies, and geometry diagnostics for the adopted
-physics-data prior representation.
+and vertex-selection studies for the adopted physics-data prior representation.
 
 ## Repository Layout
 
@@ -56,7 +55,6 @@ python src/time_domain_standard.py
 python src/time_domain_expanded.py
 python src/fusion_ablation.py
 python src/vertex_selection_ablation.py
-python src/geometry_diagnostics.py
 ```
 
 The scripts write regenerated outputs to local result folders created at
