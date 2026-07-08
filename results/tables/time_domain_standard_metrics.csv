@@ -1,0 +1,4 @@
+Controller,gamma,RMSE_pos,RMSE_excess,IAE_pos,IAE_excess,peak_pos,peak_excess,settle_mean_excess,settle_worst_excess,du_peak,uabs_peak,energy_uc,energy_uabs,duty_abs,duty_normsat,duty_ratesat,rho
+Proposed,4.4142,0.5182,0.4021,14.75,11.53,1.176,0.4784,7.35,14,0.9838,1.56,0.9301,10.21,0,0,0,0.8415
+Baseline B,5.2152,0.6159,0.4972,17.77,14.28,1.245,0.5906,7.35,14,0.9257,1.577,0.7991,10.19,0,0,0,0.842
+Nominal LQR,nan,0.7523,0.6346,21.93,18.27,1.348,0.7445,7.35,14,0.6364,1.75,0.4582,11,0,0,0,0.8165

@@ -1,0 +1,216 @@
+
+[Data Generation] Sampling random 'historical' plant parameters within bounds:
+  sigma_t: 1.0516 (Nom: 0.8750)
+  Simulating batch data (L=1200) from random plant...
+  [Stage3] Using fixed disturbance bound: d_max = 2.4000
+  [P0-3 W_c] alpha_c = 1.047382e-02  (safety_factor=1.050, vertex_max_eig=9.975062e-03, interior_max_eig=9.975003e-03)
+  [P0-3 W_c verify] vertex set : min PSD gap = 4.988e-04, violations = 0/1024  (formal)
+  [P0-3 W_c verify] interior   : min PSD gap = 4.988e-04, violations = 0/1000  (sanity)
+  [P0-1 W_E] DETERMINISTIC bound: sigma_E_x = 5.00e-04 (Gaussian std), nu_E_max = 3.00e-03 (L2 cap); ||W_E^x||_op = 1.080e-02 (= 1200*nu_E_max^2, top 12); W_E^z = 0
+  [P0-2 DIAGNOSTIC, MODEL-MISMATCH diagnostic over ALL prior vertices (NOT a residual check)]
+    rho_E = 8.5318e-01 (@ vertex 28/1024)
+    d_max^2 * alpha_c = 6.0329e-02 | nu_E_max^2 = 9.0000e-06 (formal W_E) | sigma_E_x^2 = 2.5000e-07
+
+Generating 8 geometric fusion plots...
+    Plotting 2D slice: Jx vs Jy ...
+    Plotting 2D slice: Jy vs kp ...
+    Plotting 2D slice: Jz vs kx ...
+    Plotting 2D slice: kp vs kr ...
+    Plotting 2D slice: ky vs kq ...
+    Plotting 2D slice: sigma_t vs Jy ...
+    Plotting 2D slice: ky vs kr ...
+    Plotting 2D slice: kp vs kq ...
+[SelfCheck] (hist) p_data_source: s_raw=7.748772e-12 (mode=lambda_max)
+  Plots generated
+
+Score statistics: n=1024, min=1.0899e+02, max=8.8277e+02, mean=6.1341e+02
+  Histogram: [256   0   0   0   0   0 256   0   0 512]
+
+[SelfCheck] p_data_source (data-generating plant): s_raw=7.748772e-12 (mode=lambda_max) | among pool: min=1.089939e+02, max=8.827735e+02, percentile=0.00% (<=count 0/1024), gap_to_min=-1.090e+02
+[SelfCheck] p_nom (nominal center): s_raw=1.375733e+02 (mode=lambda_max) | among pool: min=1.089939e+02, max=8.827735e+02, percentile=25.00% (<=count 256/1024), gap_to_min=2.858e+01
+  [ScorePipeline] SOFT-CONSISTENCY mode: hard_ratio(tau=0)=0.0000 < 0.01
+  [ScorePipeline]   tau_effective=1.090118e+02 (rho=0.1 quantile of raw scores)
+  [ScorePipeline] tau_eff=1.090e+02, sigma=6.446e-01, soft_mode=True, uninformative=False
+  [ScorePipeline] s: n_zero=103/1024, min=0.0000, max=0.6323, mean=0.4338
+[Vertices-Pool] robust s: min=0.000e+00, max=6.323e-01, n=1024, n_zero=103, soft_mode=True
+  [P0-2 I0] |I0| (processed s==0) = 103/1024, tau_eff = 1.090e+02, soft_mode = True
+  [P0-2 DIAGNOSTIC, processed score-zero subset I0 (a-posteriori residual diagnostic)]
+    rho_E = 2.1045e-01 (@ vertex 35/103)
+    d_max^2 * alpha_c = 6.0329e-02 | nu_E_max^2 = 9.0000e-06 (formal W_E) | sigma_E_x^2 = 2.5000e-07
+
+============================================================
+[IterConstraintExchange] Starting with K_budget=20, max_rounds=4
+============================================================
+[IterExchange] Init: K=20, m_incon=4, s>0 in active=17, stratified=yes
+
+[Round 1/4] Active: 20, s range: [0.000e+00, 6.312e-01], s>0: 17
+[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
+  SDP solved: gamma=4.8677, beta=29.6947
+  Verification: max_violation=0.000008 (vertex 298), n_violated=0/1024, consistent_violated=0
+  *** Converged: all vertices satisfy LMI (tol=1.0e-04) ***
+
+[IterExchange] Final: 20 vertices, gamma=4.8677, max_viol=0.000008, n_violated=0
+
+[BaselineB] Same 20 vertices as Proposed, s_i=0 (no relaxation). threads=1
+[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
+Problem
+  Name                   : vertex_fusion
+  Objective sense        : minimize
+  Type                   : CONIC (conic optimization problem)
+  Constraints            : 0
+  Affine conic cons.     : 43 (40759 rows)
+  Disjunctive cons.      : 0
+  Cones                  : 0
+  Scalar variables       : 68
+  Matrix variables       : 1 (scalarized: 136)
+  Integer variables      : 0
+
+Optimizer started.
+Presolve started.
+Linear dependency checker started.
+Linear dependency checker terminated.
+Eliminator started.
+Freed constraints in eliminator : 0
+Eliminator terminated.
+Eliminator - tries                  : 1                 time                   : 0.00
+Lin. dep.  - tries                  : 1                 time                   : 0.02
+Lin. dep.  - primal attempts        : 1                 successes              : 1
+Lin. dep.  - dual attempts          : 0                 successes              : 0
+Lin. dep.  - primal deps.           : 0                 dual deps.             : 0
+Presolve terminated. Time: 0.02
+GP based matrix reordering started.
+GP based matrix reordering terminated.
+Optimizer  - threads                : 1
+Optimizer  - solved problem         : the primal
+Optimizer  - Constraints            : 40759
+Optimizer  - Cones                  : 1
+Optimizer  - Scalar variables       : 67                conic                  : 65
+Optimizer  - Semi-definite variables: 44                scalarized             : 40895
+Factor     - setup time             : 67.89
+Factor     - dense det. time        : 31.67             GP order time          : 0.01
+Factor     - nonzeros before factor : 2.60e+08          after factor           : 2.97e+08
+Factor     - dense dim.             : 0                 flops                  : 4.21e+12
+Factor     - GP saved nzs           : 7.74e+06          GP saved flops         : 2.93e+11
+ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME
+0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  68.02
+1   4.9e-01  4.9e-01  3.4e-01  9.27e-01   5.969723938e-01   5.861176896e-01   4.9e-01  145.41
+2   7.9e-02  7.9e-02  1.9e-02  1.07e+00   1.078558223e+00   1.059964254e+00   7.9e-02  224.34
+3   1.9e-02  1.9e-02  2.6e-03  1.09e+00   1.960758810e+00   1.960993030e+00   1.9e-02  306.20
+4   6.6e-03  6.6e-03  6.3e-04  6.92e-01   3.267221009e+00   3.268547542e+00   6.6e-03  385.33
+5   4.3e-03  4.3e-03  4.2e-04  4.36e-01   3.972042765e+00   3.974935314e+00   4.3e-03  464.49
+6   8.6e-04  8.6e-04  5.6e-05  5.58e-01   6.651881920e+00   6.654042901e+00   8.6e-04  544.12
+7   1.6e-04  1.6e-04  9.4e-06  3.25e-01   9.741222208e+00   9.743718121e+00   1.6e-04  622.83
+8   3.7e-05  3.7e-05  2.1e-06  8.54e-02   1.310252332e+01   1.310540701e+01   3.7e-05  702.83
+9   1.4e-05  1.4e-05  1.0e-06  -1.03e-01  1.570923527e+01   1.571366250e+01   1.4e-05  780.88
+10  2.8e-06  2.8e-06  2.0e-07  9.62e-02   2.312623861e+01   2.313121670e+01   2.8e-06  861.52
+11  5.0e-07  5.0e-07  4.1e-08  -1.11e-01  3.437965199e+01   3.438620320e+01   5.0e-07  943.50
+12  3.5e-07  3.5e-07  2.9e-08  -8.10e-02  3.735439953e+01   3.736122568e+01   3.5e-07  1173.97
+13  3.2e-07  3.2e-07  2.7e-08  -2.92e-02  3.814164595e+01   3.814851118e+01   3.2e-07  1252.83
+14  9.0e-08  9.0e-08  7.4e-09  -1.96e-03  4.836291246e+01   4.836964756e+01   9.0e-08  1410.53
+15  2.7e-08  1.3e-08  9.0e-10  1.23e-01   6.168525347e+01   6.168974942e+01   1.4e-08  1491.83
+16  2.6e-08  1.2e-08  8.3e-10  1.94e-01   6.206161747e+01   6.206608716e+01   1.3e-08  1650.34
+17  2.6e-08  1.2e-08  8.3e-10  1.94e-01   6.206161747e+01   6.206608716e+01   1.3e-08  1731.16
+18  2.6e-08  1.2e-08  8.3e-10  1.94e-01   6.206161747e+01   6.206608716e+01   1.3e-08  1817.39
+Optimizer terminated. Time: 1907.20
+
+
+Interior-point solution summary
+  Problem status  : PRIMAL_AND_DUAL_FEASIBLE
+  Solution status : OPTIMAL
+  Primal.  obj: 6.2061617467e+01    nrm: 6e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 2e-05
+  Dual.    obj: 6.2066087161e+01    nrm: 5e+04    Viol.  var: 8e-06    barvar: 8e-06    acc: 0e+00
+
+Gamma comparison:
+  Proposed:              4.86772
+  BaselineB (no-relax):  7.78442
+
+  Improvement vs BaselineB: 37.47%
+
+Generating gamma comparison chart...
+
+Using data source parameters with 5% noise for validation
+
+========================================
+ True plant parameters:
+========================================
+  Jx      : 0.017225  (range: 0.008-0.024)
+  Jy      : 0.010598  (range: 0.008-0.024)
+  Jz      : 0.026953  (range: 0.020-0.045)
+  kp      : 0.053620  (range: 0.050-0.600)
+  kq      : 0.384778  (range: 0.050-0.600)
+  kr      : 0.533298  (range: 0.050-0.600)
+  kx      : 0.159106  (range: 0.050-0.450)
+  ky      : 0.302141  (range: 0.050-0.450)
+  kz      : 0.311110  (range: 0.050-0.450)
+  sigma_t : 1.058239  (range: 0.600-1.150)
+========================================
+
+Reference: square wave on x (amp=0.5, period=16.0s, hold=8.00s)
+Multi-gust disturbance: 5 gusts, bias=0.4
+  gust 0: t=2.36-3.04s, amp=0.46
+  gust 1: t=4.80-6.01s, amp=0.57
+  gust 2: t=11.86-12.75s, amp=0.70
+  gust 3: t=15.59-16.83s, amp=0.90
+  gust 4: t=21.54-22.89s, amp=0.49
+
+Stage 3 metrics (multi-gust + saturation):
+
+[Proposed]
+  RMSE_pos                    = 0.548824
+  RMSE_excess                 = 0.433029
+  IAE_pos                     = 15.7033
+  IAE_excess                  = 12.4342
+  peak_pos                    = 1.2004
+  peak_excess                 = 0.514123
+  settle_mean_excess          = 7.35 s  (eps=0.05, hold=0.5s)
+  settle_worst_excess         = 14 s
+  IAE_excess_postgust_avg      = 1.23314  (win=3.0s)
+  peak_excess_postgust_avg     = 0.507273  (win=3.0s)
+  du_peak                     = 0.982606   (limit=3.5)
+  uabs_peak                   = 1.49601   (u_abs bounds=(-6.0, -4.0, -4.0, -4.0)..(6.0, 4.0, 4.0, 4.0))
+  duty_du (||u_c|| near max)   = 0.000
+  duty_abs (abs clamp)         = 0.000
+  duty_normsat (norm sat)      = 0.000
+  duty_ratesat (rate sat)      = 0.000
+  rho(A+BK) (linear proxy)     = 0.853087
+
+[BaselineB(NoRelax)]
+  RMSE_pos                    = 0.83809
+  RMSE_excess                 = 0.712723
+  IAE_pos                     = 24.4886
+  IAE_excess                  = 20.5235
+  peak_pos                    = 1.42773
+  peak_excess                 = 0.845188
+  settle_mean_excess          = 7.35 s  (eps=0.05, hold=0.5s)
+  settle_worst_excess         = 14 s
+  IAE_excess_postgust_avg      = 2.01699  (win=3.0s)
+  peak_excess_postgust_avg     = 0.830645  (win=3.0s)
+  du_peak                     = 0.805072   (limit=3.5)
+  uabs_peak                   = 1.52928   (u_abs bounds=(-6.0, -4.0, -4.0, -4.0)..(6.0, 4.0, 4.0, 4.0))
+  duty_du (||u_c|| near max)   = 0.000
+  duty_abs (abs clamp)         = 0.000
+  duty_normsat (norm sat)      = 0.000
+  duty_ratesat (rate sat)      = 0.000
+  rho(A+BK) (linear proxy)     = 0.854205
+
+[NominalLQR]
+  RMSE_pos                    = 0.748581
+  RMSE_excess                 = 0.631986
+  IAE_pos                     = 21.8255
+  IAE_excess                  = 18.1897
+  peak_pos                    = 1.3418
+  peak_excess                 = 0.74139
+  settle_mean_excess          = 7.35 s  (eps=0.05, hold=0.5s)
+  settle_worst_excess         = 14 s
+  IAE_excess_postgust_avg      = 1.7891  (win=3.0s)
+  peak_excess_postgust_avg     = 0.735098  (win=3.0s)
+  du_peak                     = 0.731802   (limit=3.5)
+  uabs_peak                   = 1.68179   (u_abs bounds=(-6.0, -4.0, -4.0, -4.0)..(6.0, 4.0, 4.0, 4.0))
+  duty_du (||u_c|| near max)   = 0.000
+  duty_abs (abs clamp)         = 0.000
+  duty_normsat (norm sat)      = 0.000
+  duty_ratesat (rate sat)      = 0.000
+  rho(A+BK) (linear proxy)     = 0.82111
+
+[Figures] Publication-quality figures exported to: ./time-new-ex/
+Saved results to: stage3_time_domain_results-ex.npz

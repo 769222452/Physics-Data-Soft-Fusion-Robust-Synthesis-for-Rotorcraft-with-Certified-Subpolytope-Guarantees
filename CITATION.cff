@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the associated manuscript and repository."
+title: "Physics-Data Soft Fusion Robust Synthesis for Rotorcraft with Certified Subpolytope Guarantees"
+authors:
+  - family-names: Shen
+    given-names: Mingjie
+repository-code: "https://github.com/769222452/Physics-Data-Soft-Fusion-Robust-Synthesis-for-Rotorcraft-with-Certified-Subpolytope-Guarantees"
+license: Apache-2.0
+date-released: "2026-07-08"
+type: software
