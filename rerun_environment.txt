@@ -1,0 +1,60 @@
+Rerun environment
+=================
+
+Campaign start: 2026-07-11T09:51:49+08:00
+Campaign completion: 2026-07-12T08:27:16+08:00
+Operating system: Microsoft Windows 11 Home, version 10.0.22000, 64 bit
+Processor: 11th Gen Intel(R) Core(TM) i5-11400H @ 2.70 GHz
+Processor topology: 6 physical cores, 12 logical processors
+
+Python: 3.8.6 (64 bit, MSC v.1927)
+NumPy: 1.24.4
+SciPy: 1.10.1
+Matplotlib: 3.7.5
+MOSEK: 10.2.17
+BLAS/LAPACK: OpenBLAS ILP64
+
+Fixed base random seed: 26
+Monte Carlo sample count: 2000 for the fusion ablation
+Vertex-selection ablation: 5 synthesis seeds and 500 Monte Carlo plants per run
+Prior vertices: 1024
+Offline batch length: 1200
+
+Numerical Surrogate-pass threshold: 1e-4
+Numerical Near-surrogate threshold: 2e-4
+Theoretical LMI inequalities: exact semidefinite inequalities
+
+Standard SDP settings:
+  maximum interior-point iterations: 50
+  relative gap: 1e-4
+  primal feasibility tolerance: 1e-6
+  dual feasibility tolerance: 1e-6
+  maximum solve time: 1800 s
+  ICE solves: min(8, available logical processors) threads
+  reported same-active-set and fixed hard-selection baselines: 1 thread
+
+Vertex-selection stage 1:
+  maximum interior-point iterations: 50
+  relative gap: 1e-4
+  primal/dual feasibility tolerances: 1e-6
+  maximum solve time: 1500 s
+
+Vertex-selection polish stage:
+  maximum interior-point iterations: 200
+  relative gap: 1e-7
+  primal/dual feasibility tolerances: 1e-8
+  maximum solve time: 600 s
+
+Fixed physical scales defining dimensionless coordinates:
+  state: 1,1,1,1,1,1,0.25,0.25,0.25,1,1,1
+  input memory: 6,4,4,4
+  input increment: 3.5,3.5,3.5,3.5
+  disturbance: 2.4,2.4,2.4,2.4,2.4,2.4
+  recording residual cap: 3e-3 on each of 12 state channels
+  recording residual standard deviation: 5e-4 on each state channel
+
+Full-rerun commands, executed from the repository root:
+  python src/time_domain_standard.py
+  python src/time_domain_expanded.py
+  python src/fusion_ablation.py
+  python src/vertex_selection_ablation.py

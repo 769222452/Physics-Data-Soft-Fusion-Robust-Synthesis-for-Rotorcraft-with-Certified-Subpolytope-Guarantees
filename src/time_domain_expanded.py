@@ -17,8 +17,40 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 
+from normalized_coordinates import (
+    DEFAULT_SCALES,
+    EPS_NEAR,
+    EPS_PASS,
+    build_normalized_augmented_matrices,
+    build_normalized_performance_matrices,
+    build_normalized_residual_bound,
+    build_fusion_diagnostics_payload,
+    build_physical_augmented_matrices,
+    build_physical_performance_matrices,
+    append_tracking_simulation_payload,
+    allocate_stratified_budget,
+    classify_surrogate_status,
+    compute_inconsistency_quota,
+    disturbance_to_normalized,
+    evaluate_auxiliary_lmi_residuals,
+    gain_to_normalized,
+    gain_to_physical,
+    increment_to_normalized,
+    project_disturbance_physical,
+    project_increment_physical,
+    sample_capped_physical_residual,
+    state_to_normalized,
+    verify_realized_record_residual,
+)
+from mosek_helpers import (
+    fusion_matrix_level,
+    mosek_exception_payload,
+    mosek_status_payload,
+    validate_mosek_solution,
+)
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-RESULTS_ROOT = os.path.join(PROJECT_ROOT, "simulation_results")
+RESULTS_ROOT = os.path.join(PROJECT_ROOT, "results_revised")
 
 
 def result_path(*parts: str) -> str:
@@ -181,6 +213,10 @@ def configure_mosek_license(
         return lic
 
     env_val = os.environ.get("MOSEKLM_LICENSE_FILE", "")
+    if env_val and ("@" in env_val or os.path.isfile(env_val)):
+        if verbose:
+            print(f"[MOSEK] Using configured license: {env_val}")
+        return env_val
     raise FileNotFoundError(
         "MOSEK license was not found. Set MOSEKLM_LICENSE_FILE to a license "
         "file path or to a license server such as '27000@server'. "
@@ -191,16 +227,10 @@ def configure_mosek_license(
 # =========================================================
 # Plotting utilities
 # =========================================================
-def E(k: float, Ts: float) -> float:
-    return float(np.exp(-k * Ts))
 
 
-def S(k: float, Ts: float) -> float:
-    return float((1.0 - np.exp(-k * Ts)) / k)
 
 
-def eta(k: float, Ts: float) -> float:
-    return float(Ts / k - (1.0 - np.exp(-k * Ts)) / (k ** 2))
 
 
 # =========================================================
@@ -254,94 +284,28 @@ class SynthesisParams:
     fig_show_titles: bool = True
     fig_out_dir: str = result_path("Stage3_Figures_Paper")
 
-    # P0-1 (round-5): Gaussian std of the sampled-state residual.
+    # Gaussian std of the sampled-state residual.
     sigma_E_x: float = 5e-4
-    # P0-1 (round-6): hard L2-norm cap supporting a DETERMINISTIC Loewner W_E.
+    # Physical cap used by the fixed channel-scaled residual ellipsoid.
     nu_E_max: float = 3e-3
 
 # =========================================================
 # Plotting utilities
 # =========================================================
+
+
 def build_vertex_matrices(p: Dict[str, float], Ts: float, g: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    sigma_t = p["sigma_t"]
-    Jx, Jy, Jz = p["Jx"], p["Jy"], p["Jz"]
-    kx, ky, kz = p["kx"], p["ky"], p["kz"]
-    kp, kq, kr = p["kp"], p["kq"], p["kr"]
+    """Return the synthesis model in fixed dimensionless coordinates."""
+    return build_normalized_augmented_matrices(p, Ts, g, DEFAULT_SCALES)
 
-    Ex, Ey, Ez = E(kx, Ts), E(ky, Ts), E(kz, Ts)
-    Sx, Sy, Sz = S(kx, Ts), S(ky, Ts), S(kz, Ts)
-    etax, etay, etaz = eta(kx, Ts), eta(ky, Ts), eta(kz, Ts)
-    E_v = np.diag([Ex, Ey, Ez])
-    S_v = np.diag([Sx, Sy, Sz])
-    eta_v = np.diag([etax, etay, etaz])
 
-    Ep, Eq, Er = E(kp, Ts), E(kq, Ts), E(kr, Ts)
-    Sp, Sq, Sr = S(kp, Ts), S(kq, Ts), S(kr, Ts)
-    etap, etaq, etar = eta(kp, Ts), eta(kq, Ts), eta(kr, Ts)
-    E_om = np.diag([Ep, Eq, Er])
-    S_om = np.diag([Sp, Sq, Sr])
-    eta_om = np.diag([etap, etaq, etar])
-
-    G_eta = np.array([[0.0, g * etax, 0.0],
-                      [-g * etay, 0.0, 0.0],
-                      [0.0, 0.0, 0.0]])
-    G_S = np.array([[0.0, g * Sx, 0.0],
-                    [-g * Sy, 0.0, 0.0],
-                    [0.0, 0.0, 0.0]])
-
-    Phi_eta_T = np.zeros((3, 4))
-    Phi_eta_T[2, 0] = sigma_t * etaz
-    Phi_S_T = np.zeros((3, 4))
-    Phi_S_T[2, 0] = sigma_t * Sz
-
-    Jinv = np.diag([1.0 / Jx, 1.0 / Jy, 1.0 / Jz])
-    Psi_eta_tau = np.zeros((3, 4))
-    Psi_S_tau = np.zeros((3, 4))
-    Psi_eta_tau[:, 1:] = Jinv @ eta_om
-    Psi_S_tau[:, 1:] = Jinv @ S_om
-
-    S_d = np.zeros((12, 6))
-    S_d[0:3, 0:3] = eta_v
-    S_d[3:6, 0:3] = S_v
-    S_d[6:9, 3:6] = eta_om
-    S_d[9:12, 3:6] = S_om
-
-    I3 = np.eye(3)
-    I4 = np.eye(4)
-
-    A = np.zeros((16, 16))
-    A[0:3, 0:3] = I3
-    A[0:3, 3:6] = S_v
-    A[0:3, 6:9] = G_eta
-    A[0:3, 12:16] = Phi_eta_T
-
-    A[3:6, 3:6] = E_v
-    A[3:6, 6:9] = G_S
-    A[3:6, 12:16] = Phi_S_T
-
-    A[6:9, 6:9] = I3
-    A[6:9, 9:12] = S_om
-    A[6:9, 12:16] = Psi_eta_tau
-
-    A[9:12, 9:12] = E_om
-    A[9:12, 12:16] = Psi_S_tau
-
-    A[12:16, 12:16] = I4
-
-    B = np.zeros((16, 4))
-    B[0:3, :] = Phi_eta_T
-    B[3:6, :] = Phi_S_T
-    B[6:9, :] = Psi_eta_tau
-    B[9:12, :] = Psi_S_tau
-    B[12:16, :] = I4
-
-    S_c = np.zeros((16, 6))
-    S_c[0:12, :] = S_d
-    return A, B, S_c
+def build_physical_matrices(p: Dict[str, float], Ts: float, g: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the plant model in physical coordinates."""
+    return build_physical_augmented_matrices(p, Ts, g)
 
 
 # =========================================================
-# P1-2: Single source of truth for the 8 geometric pairs shown in the paper.
+# Single source of truth for the 8 geometric pairs shown in the paper.
 # File names are `Exp1_Geometry_{x}_vs_{y}.pdf` and must match the LaTeX
 # includegraphics paths in cas-sc-template.tex.
 # =========================================================
@@ -357,17 +321,15 @@ FIG4_PAIRS: Tuple[Tuple[str, str], ...] = (
 )
 
 
+
+
 def build_performance_matrices(syn: SynthesisParams) -> Tuple[np.ndarray, np.ndarray]:
-    Qx_diag = np.array(syn.Qx_perf, dtype=float)
-    Rd_diag = np.array(syn.Rd_perf, dtype=float)
+    """Performance map for normalized state and increment coordinates."""
+    return build_normalized_performance_matrices(syn.Qx_perf, syn.Rd_perf, DEFAULT_SCALES)
 
-    Cc = np.zeros((16, 16))
-    dim_q = len(Qx_diag)
-    Cc[0:dim_q, 0:dim_q] = np.diag(np.sqrt(Qx_diag))
 
-    Dc = np.zeros((16, 4))
-    Dc[12:16, 0:4] = np.diag(np.sqrt(Rd_diag))
-    return Cc, Dc
+def build_physical_performance(syn: SynthesisParams) -> Tuple[np.ndarray, np.ndarray]:
+    return build_physical_performance_matrices(syn.Qx_perf, syn.Rd_perf)
 
 
 # =========================================================
@@ -379,11 +341,6 @@ def dlqr(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> np.ndarr
     return K
 
 
-def saturate_norm(u: np.ndarray, umax: float) -> np.ndarray:
-    n = float(np.linalg.norm(u))
-    if n <= umax or n < 1e-12:
-        return u
-    return u * (umax / n)
 
 
 def clip_vec(u: np.ndarray, umin: np.ndarray, umax: np.ndarray) -> np.ndarray:
@@ -403,11 +360,8 @@ def spectral_radius(M: np.ndarray) -> float:
     return float(np.max(np.abs(w)))
 
 
-def trapz_sum(y: np.ndarray, Ts: float) -> float:
-    # NOTE: Despite the name, this is a left-rectangular Riemann sum (sum(y)*Ts), not
-    # the trapezoidal rule. The difference is O(Ts) and negligible for the integral
-    # metrics (IAE, energy) reported in this work. Kept as-is for numerical stability
-    # of the published tables.
+def discrete_time_sum(y: np.ndarray, Ts: float) -> float:
+    """Rectangular discrete-time approximation ``Ts * sum(y)``."""
     return float(np.sum(y) * Ts)
 
 
@@ -427,31 +381,40 @@ def simulate_batch_data(
     """
     """
     Ts, g = syn.Ts, syn.g
-    d_max = syn.d_max
-    du_max = syn.du_max
     rng = np.random.default_rng(syn.seed)
 
-    A_gen, B_gen, S_gen = build_vertex_matrices(p_gen, Ts, g)
-
-    Cc, Dc = build_performance_matrices(syn)
+    A_gen, B_gen, S_gen = build_physical_matrices(p_gen, Ts, g)
+    Cc, Dc = build_physical_performance(syn)
 
     Qlqr = np.diag(syn.Qx_lqr)
     Rlqr = np.diag(syn.Ru_lqr)
 
     if K_fb is not None:
-        K0 = np.asarray(K_fb, dtype=float)
+        K0_bar = np.asarray(K_fb, dtype=float)
+        K0 = gain_to_physical(K0_bar, DEFAULT_SCALES)
     else:
         p_for_lqr = p_lqr if p_lqr is not None else p_gen
-        A_lqr, B_lqr, _ = build_vertex_matrices(p_for_lqr, Ts, g)
+        A_lqr, B_lqr, _ = build_physical_matrices(p_for_lqr, Ts, g)
         K0 = dlqr(A_lqr, B_lqr, Qlqr, Rlqr)
+        K0_bar = gain_to_normalized(K0, DEFAULT_SCALES)
 
-    u_dither = colored_noise(4, L, alpha=0.92, scale=excite_scale, seed=syn.seed + 10)
+    u_dither_bar = colored_noise(
+        4, L, alpha=0.92, scale=excite_scale, seed=syn.seed + 10
+    )
+    u_dither = DEFAULT_SCALES.T_du @ u_dither_bar
     d_col = colored_noise(6, L, alpha=0.97, scale=1.0, seed=syn.seed + 20)
+    dbar_raw = DEFAULT_SCALES.T_d @ d_col
+    dbar_applied, disturbance_stats = project_disturbance_physical(dbar_raw, DEFAULT_SCALES)
 
     x = np.zeros((16, L + 1))
+    x_next_recorded = np.zeros((16, L))
     u_c = np.zeros((4, L))
     dbar = np.zeros((6, L))
     z = np.zeros((16, L))
+    increment_saturation_count = 0
+    absolute_saturation_count = 0
+    command_peak_normalized = 0.0
+    applied_peak_normalized = 0.0
 
     x0 = np.zeros(16)
     x0[0:3] = np.array([0.2, -0.2, 0.1])
@@ -460,35 +423,72 @@ def simulate_batch_data(
 
     for k in range(L):
         # bounded disturbance
-        dbar[:, k] = saturate_norm(d_col[:, k], 1.0) * d_max
+        dbar[:, k] = dbar_applied[:, k]
 
         # control law uses baseline K0 (nominal K)
-        uk = (K0 @ x[:, k]) + u_dither[:, k]
-        uk = saturate_norm(uk, du_max)
+        uk_cmd = (K0 @ x[:, k]) + u_dither[:, k]
+        command_peak_normalized = max(
+            command_peak_normalized,
+            float(np.linalg.norm(increment_to_normalized(uk_cmd, DEFAULT_SCALES))),
+        )
+        uk_limited, increment_flags = apply_increment_limits(uk_cmd, syn)
+        uk, u_next, absolute_flags = apply_absolute_actuator_limits(
+            x[12:16, k], uk_limited, syn
+        )
+        increment_saturation_count += int(
+            increment_flags["rate_sat"] or increment_flags["norm_sat"]
+        )
+        absolute_saturation_count += int(absolute_flags["abs_sat"])
+        applied_peak_normalized = max(
+            applied_peak_normalized,
+            float(np.linalg.norm(increment_to_normalized(uk, DEFAULT_SCALES))),
+        )
 
         u_c[:, k] = uk
         z[:, k] = Cc @ x[:, k] + Dc @ uk
 
         # state update uses TRUE/UNKNOWN plant (A_gen, B_gen, S_gen)
         x[:, k + 1] = A_gen @ x[:, k] + B_gen @ uk + S_gen @ dbar[:, k]
-        # P0.3 + P0-1 (round-6): hard-saturated residual on 12-state block (deterministic W_E).
-        nu = rng.standard_normal(12) * meas_noise_std
-        nu = _saturate_residual_norm(nu, float(syn.nu_E_max))
-        x[0:12, k + 1] += nu
+        x[12:16, k + 1] = u_next
+        x_next_recorded[:, k] = x[:, k + 1]
+        # Project the recording perturbation into the fixed residual ellipsoid.
+        nu, _ = sample_capped_physical_residual(
+            rng, DEFAULT_SCALES, residual_std=meas_noise_std
+        )
+        x_next_recorded[0:12, k] += nu
 
+    inv_Txc = np.diag(1.0 / np.diag(DEFAULT_SCALES.T_xc))
+    inv_Tdu = np.diag(1.0 / np.diag(DEFAULT_SCALES.T_du))
+    inv_Td = np.diag(1.0 / np.diag(DEFAULT_SCALES.T_d))
+    A_bar, B_bar, S_bar = build_vertex_matrices(p_gen, Ts, g)
+    C_bar, D_bar = build_performance_matrices(syn)
     return dict(
-        X_t=x[:, 0:L], X_tp1=x[:, 1:L + 1], U_t=u_c, Z_t=z, Dbar_t=dbar,
-        A=A_gen, B=B_gen, S_c=S_gen, Cc=Cc, Dc=Dc, K0=K0
+        X_t=inv_Txc @ x[:, 0:L], X_tp1=inv_Txc @ x_next_recorded,
+        U_t=inv_Tdu @ u_c, Z_t=z, Dbar_t=inv_Td @ dbar,
+        X_phys=x, X_tp1_recorded_phys=x_next_recorded,
+        U_phys=u_c, Dbar_phys=dbar,
+        A=A_bar, B=B_bar, S_c=S_bar, Cc=C_bar, Dc=D_bar,
+        K0=K0_bar, K0_physical=K0,
+        disturbance_stats=disturbance_stats,
+        input_saturation_stats=dict(
+            increment_saturation_count=increment_saturation_count,
+            increment_saturation_rate=increment_saturation_count / float(L),
+            absolute_saturation_count=absolute_saturation_count,
+            absolute_saturation_rate=absolute_saturation_count / float(L),
+            command_peak_normalized=command_peak_normalized,
+            applied_peak_normalized=applied_peak_normalized,
+        ),
     )
 def build_disturbance_psd_bound(
         bounds: "ParamBounds",
         syn: SynthesisParams,
         *,
+        batch_generator: Optional[Dict[str, float]] = None,
         n_internal_samples: int = 1000,
         safety_factor: float = 1.05,
         seed: int = 0,
 ) -> Tuple[np.ndarray, Dict[str, float]]:
-    """P0-3: PSD upper bound W_c at every prior vertex; safety_factor=1.05.
+    """PSD upper bound at every adopted vertex and the batch generator.
 
     Random interior samples are evaluated separately as a numerical sanity check only."""
     keys = list(bounds.__dataclass_fields__.keys())
@@ -513,7 +513,13 @@ def build_disturbance_psd_bound(
         _, _, S_v = build_vertex_matrices(p, syn.Ts, syn.g)
         interior_max_eig = max(interior_max_eig, float(la.eigvalsh(S_v @ S_v.T)[-1]))
 
-    alpha = float(safety_factor) * vertex_max_eig
+    generator_max_eig = 0.0
+    if batch_generator is not None:
+        _, _, S_generator = build_vertex_matrices(batch_generator, syn.Ts, syn.g)
+        generator_max_eig = float(la.eigvalsh(S_generator @ S_generator.T)[-1])
+
+    old_alpha = float(safety_factor) * vertex_max_eig
+    alpha = float(safety_factor) * max(vertex_max_eig, generator_max_eig)
     W_c = alpha * np.eye(16)
 
     min_gap_v, n_viol_v = float("inf"), 0
@@ -531,8 +537,15 @@ def build_disturbance_psd_bound(
         if gap < -1e-10:
             n_viol_i += 1
 
+    generator_gap = float("nan")
+    if batch_generator is not None:
+        generator_gap = float(la.eigvalsh(W_c - S_generator @ S_generator.T)[0])
+
     info = dict(
         alpha=alpha, vertex_max_eig=vertex_max_eig, interior_max_eig=interior_max_eig,
+        generator_max_eig=generator_max_eig, generator_psd_gap=generator_gap,
+        old_vertex_only_alpha=old_alpha,
+        generator_changed_bound=bool(generator_max_eig > vertex_max_eig),
         safety_factor=float(safety_factor),
         min_psd_gap_vertex=min_gap_v, n_violate_vertex=n_viol_v,
         min_psd_gap_interior=min_gap_i, n_violate_interior=n_viol_i,
@@ -550,7 +563,7 @@ def verify_data_residual_bound(
         score_zero_vertices: Optional[List[Dict[str, float]]] = None,
         verbose: bool = True,
 ) -> Dict[str, float]:
-    """P0-2 (round-6): scalar diagnostic; see monclo-fusion-comp.py for full doc."""
+    """Return a scalar model-residual diagnostic that does not define W_E."""
     X_t = batch["X_t"]; X_tp1 = batch["X_tp1"]; U_t = batch["U_t"]; Z_t = batch["Z_t"]
     Dbar_t = batch.get("Dbar_t", None); L = X_t.shape[1]
     if score_zero_vertices is None:
@@ -577,9 +590,10 @@ def verify_data_residual_bound(
         if rho_i > rho_E:
             rho_E = rho_i; worst_idx = idx
     alpha_c = float(np.max(np.diag(W_c)))
-    cmp_dist = float(syn.d_max ** 2 * alpha_c)
-    cmp_nu2  = float(syn.nu_E_max) ** 2
-    cmp_sig2 = float(syn.sigma_E_x) ** 2
+    cmp_dist = alpha_c
+    cmp_nu2 = float(np.max(np.diag(build_structured_residual_bound(1, syn.nu_E_max))))
+    residual_std_bar = np.asarray(DEFAULT_SCALES.residual_std) / np.asarray(DEFAULT_SCALES.state)
+    cmp_sig2 = float(np.max(residual_std_bar ** 2))
     info = dict(rho_E_per_sample=rho_E, worst_vertex_index=worst_idx,
                 n_vertices_scanned=len(score_zero_vertices), L=L,
                 compare_per_sample_dist=cmp_dist,
@@ -587,21 +601,13 @@ def verify_data_residual_bound(
                 compare_per_sample_sigma_E2=cmp_sig2,
                 scanned_set=scanned_label)
     if verbose:
-        print(f"  [P0-2 DIAGNOSTIC, {scanned_label}]")
+        print(f"  [Residual diagnostic, {scanned_label}]")
         print(f"    rho_E = {rho_E:.4e} (@ vertex {worst_idx}/{len(score_zero_vertices)})")
-        print(f"    d_max^2 * alpha_c = {cmp_dist:.4e} | nu_E_max^2 = {cmp_nu2:.4e} (formal W_E) | "
-              f"sigma_E_x^2 = {cmp_sig2:.4e}")
+        print(f"    normalized alpha_c = {cmp_dist:.4e} | residual-cap proxy = {cmp_nu2:.4e} | "
+              f"normalized residual-std proxy = {cmp_sig2:.4e}")
     return info
 
 
-def _saturate_residual_norm(nu: np.ndarray, max_norm: float) -> np.ndarray:
-    """P0-1 (round-6): hard L2-norm saturation supporting a deterministic Loewner W_E."""
-    if max_norm is None or max_norm <= 0.0:
-        return nu
-    n = float(np.linalg.norm(nu))
-    if n > max_norm and n > 0.0:
-        return nu * (max_norm / n)
-    return nu
 
 
 def build_structured_residual_bound(
@@ -610,11 +616,11 @@ def build_structured_residual_bound(
         *,
         W_E_z: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """P0-1 (round-6): DETERMINISTIC Loewner upper bound W_E on E_t E_t^T."""
-    M2 = float(nu_E_max) ** 2
-    W_E_x = M2 * float(L) * np.eye(12)
-    W_E_z_block = np.zeros((16, 16)) if W_E_z is None else np.asarray(W_E_z, dtype=float)
-    return la.block_diag(W_E_x, np.zeros((4, 4)), W_E_z_block)
+    """Deterministic residual bound in the normalized recorded coordinates."""
+    expected_cap = max(DEFAULT_SCALES.residual_cap)
+    if not np.isclose(float(nu_E_max), expected_cap):
+        raise ValueError("nu_E_max must agree with the fixed residual scaling")
+    return build_normalized_residual_bound(L, DEFAULT_SCALES, W_E_z)
 
 
 def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_override: Optional[float] = None) -> np.ndarray:
@@ -628,21 +634,27 @@ def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_ove
     V = np.vstack([X_t, U_t])
     Xbreve = np.vstack([X_tp1, Z_t])
 
-    d_max = d_max_override if d_max_override is not None else syn.d_max
+    if d_max_override is not None and not np.isclose(d_max_override, syn.d_max):
+        raise ValueError("the disturbance radius is fixed by DEFAULT_SCALES.T_d")
     W_c_supplied = batch.get("W_c", None)
-    if W_c_supplied is not None:
-        Wc_block = np.asarray(W_c_supplied, dtype=float)
-    else:
-        Wc_block = S_c @ np.eye(6) @ S_c.T
-    Dt_top = (L * (d_max ** 2)) * Wc_block
+    if W_c_supplied is None:
+        raise ValueError(
+            "build_psi_data requires W_c constructed over all adopted prior "
+            "vertices and the batch generator"
+        )
+    Wc_block = np.asarray(W_c_supplied, dtype=float)
+    Dt_top = L * Wc_block
     Dt_block = la.block_diag(Dt_top, np.zeros((16, 16)))
 
     W_E = batch.get("W_E", None)
     if W_E is None:
-        W_E = build_structured_residual_bound(L, float(syn.nu_E_max))
+        raise ValueError(
+            "build_psi_data requires the deterministic capped-recording "
+            "residual bound W_E"
+        )
     W_E = np.asarray(W_E, dtype=float)
 
-    Rtilde = 2.0 * Dt_block + 2.0 * W_E  # P0-1 paper eq:Rtilde_def
+    Rtilde = 2.0 * Dt_block + 2.0 * W_E
 
     Psi = np.block([
         [V @ V.T, -(V @ Xbreve.T)],
@@ -651,119 +663,6 @@ def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_ove
     return 0.5 * (Psi + Psi.T)
 
 
-def estimate_dmax_from_batch(
-        batch: Dict[str, np.ndarray],
-        A_nom: np.ndarray,
-        B_nom: np.ndarray,
-        S_for_est: np.ndarray,
-        *,
-        d_max_prev: float = 2.0,
-        alpha: float = 0.01,
-        delta: float = 1e-3,
-        eta: float = 0.2,
-        dmin: float = 0.1,
-        dcap: float = 20.0,
-        method: str = "quantile+dkw",
-        fast_up: float = 1.2,
-        slow_down: float = 0.95,
-        cross_fit: bool = True,
-) -> Tuple[float, Dict[str, Any]]:
-    X_t = batch["X_t"]
-    X_tp1 = batch["X_tp1"]
-    U_t = batch["U_t"]
-    L = X_t.shape[1]
-
-    # --- Cross-fitting split ---
-    if cross_fit and L >= 20:
-        half = L // 2
-        idx_est = np.arange(0, half)
-        idx_build = np.arange(half, L)
-        cross_fit_used = True
-    else:
-        idx_est = np.arange(L)
-        idx_build = np.arange(L)
-        cross_fit_used = False
-
-    # --- Residual on estimation half ---
-    Res = X_tp1[:, idx_est] - (A_nom @ X_t[:, idx_est] + B_nom @ U_t[:, idx_est])
-
-    # --- Project onto disturbance subspace ---
-    S_pinv = np.linalg.pinv(S_for_est)
-    d_est = S_pinv @ Res
-    d_norms = np.linalg.norm(d_est, axis=0)
-    L_est = len(idx_est)
-
-    # --- Unexplained ratio diagnostic ---
-    r_proj = S_for_est @ d_est
-    r_unexpl = Res - r_proj
-    unexpl_norms = np.linalg.norm(r_unexpl, axis=0)
-    res_norms = np.linalg.norm(Res, axis=0) + 1e-12
-    unexpl_ratios = unexpl_norms / res_norms
-    unexpl_p50 = float(np.quantile(unexpl_ratios, 0.5))
-    unexpl_p90 = float(np.quantile(unexpl_ratios, 0.9))
-    sc_mismatch = unexpl_p90 > 0.5
-    if sc_mismatch:
-        print(f"  [AdaptDmax] WARNING: unexplained_ratio p90={unexpl_p90:.3f} > 0.5, "
-              f"S_c channel structure may be mismatched!")
-
-    # --- DKW confidence correction ---
-    if method == "quantile+dkw" and L_est >= 2:
-        eps_dkw = np.sqrt(np.log(2.0 / delta) / (2.0 * L_est))
-        q_level = min(1.0 - alpha + eps_dkw, 0.999)
-    else:
-        q_level = min(1.0 - alpha, 0.999)
-
-    dmax_est = float(np.quantile(d_norms, q_level))
-
-    # --- Safety margin + engineering bounds ---
-    dmax_target = float(np.clip(dmax_est * (1.0 + eta), dmin, dcap))
-
-    # --- Fast-up / slow-down hysteresis ---
-    if dmax_target > d_max_prev:
-        dmax_new = min(dmax_target, fast_up * d_max_prev)
-    else:
-        dmax_new = max(dmax_target, slow_down * d_max_prev)
-
-    # --- Final clip to engineering bounds ---
-    hit_cap = dmax_new >= dcap
-    hit_floor = dmax_new <= dmin
-    dmax_new = float(np.clip(dmax_new, dmin, dcap))
-
-    # --- Hard-consistent ratio ---
-    hard_ratio = float(np.mean(d_norms <= dmax_new))
-
-    diag = dict(
-        dmax_est_raw=dmax_est,
-        dmax_target=dmax_target,
-        dmax_new=dmax_new,
-        d_max_prev=d_max_prev,
-        q_level=q_level,
-        L_est=L_est,
-        d_norms_max=float(np.max(d_norms)),
-        d_norms_p99=float(np.quantile(d_norms, 0.99)),
-        d_norms_median=float(np.median(d_norms)),
-        hard_consistent_ratio=hard_ratio,
-        hit_cap=hit_cap,
-        hit_floor=hit_floor,
-        unexplained_ratio_p50=unexpl_p50,
-        unexplained_ratio_p90=unexpl_p90,
-        sc_mismatch_warning=sc_mismatch,
-        cross_fit_used=cross_fit_used,
-        idx_build=idx_build,
-    )
-
-    print(f"  [AdaptDmax] d_max: {d_max_prev:.4f} -> {dmax_new:.4f} "
-          f"(est_raw={dmax_est:.4f}, target={dmax_target:.4f}, q={q_level:.4f}, eta={eta})")
-    print(f"  [AdaptDmax] hard_consistent_ratio={hard_ratio:.4f}, "
-          f"d_norms: max={diag['d_norms_max']:.4f}, p99={diag['d_norms_p99']:.4f}")
-    print(f"  [AdaptDmax] unexplained_ratio: p50={unexpl_p50:.4f}, p90={unexpl_p90:.4f}"
-          f"{'  *** S_c MISMATCH ***' if sc_mismatch else ''}")
-    if hit_cap:
-        print(f"  [AdaptDmax] WARNING: d_max hit cap={dcap}")
-    if hit_floor:
-        print(f"  [AdaptDmax] WARNING: d_max hit floor={dmin}")
-
-    return dmax_new, diag
 
 
 # =========================================================
@@ -918,6 +817,7 @@ def compute_si_from_vi(
 ) -> Tuple[List[Dict[str, object]], Dict[str, Any]]:
     raw_s = np.array([float(v["s"]) for v in vertices], dtype=float)
     n = len(raw_s)
+    n_raw_consistent = int(np.sum(raw_s <= tau))
 
     # --- Step 0: Soft-threshold fallback detection ---
     hard_consistent_mask = raw_s <= tau
@@ -930,7 +830,7 @@ def compute_si_from_vi(
         hard_consistent_mask = raw_s <= tau_effective
         hard_ratio = float(np.mean(hard_consistent_mask))
         soft_mode = True
-        print(f"  [ScorePipeline] SOFT-CONSISTENCY mode: "
+        print(f"  [ScorePipeline] PROCESSED-SCORE FALLBACK: "
               f"hard_ratio(tau=0)={float(np.mean(raw_s <= tau)):.4f} < {hard_ratio_min}")
         print(f"  [ScorePipeline]   tau_effective={tau_effective:.6e} "
               f"(rho={rho} quantile of raw scores)")
@@ -943,11 +843,26 @@ def compute_si_from_vi(
         p = p / (float(L) + eps)
 
     # --- Step 3: Robust scaling (quantile-based, not max) ---
-    p_pos = p[p > eps]
+    p_pos = p[p > 0.0]
     if len(p_pos) == 0:
-        sigma = 0.0
-    else:
-        sigma = float(np.quantile(p_pos, q_scale))
+        s_final = np.zeros(n)
+        out = []
+        for i, vertex in enumerate(vertices):
+            updated = dict(vertex)
+            updated["s_raw"] = float(vertex["s"])
+            updated["s"] = float(s_final[i])
+            out.append(updated)
+        diag = dict(
+            tau_effective=tau_effective, soft_mode=soft_mode,
+            hard_ratio=hard_ratio, sigma=0.0, uninformative=True,
+            n_raw_consistent=n_raw_consistent,
+            n_zero_processed=n,
+            n_consistent=n, n_total=n, s_min=0.0, s_max=0.0, s_mean=0.0,
+        )
+        print("  [ScorePipeline] UNINFORMATIVE: no positive score excess; "
+              "all s_i set to 0 (prior-only fallback)")
+        return out, diag
+    sigma = float(np.quantile(p_pos, q_scale))
 
     uninformative = sigma < sigma_degenerate_thr
 
@@ -977,6 +892,8 @@ def compute_si_from_vi(
         hard_ratio=hard_ratio,
         sigma=sigma,
         uninformative=uninformative,
+        n_raw_consistent=n_raw_consistent,
+        n_zero_processed=int(np.sum(s_final == 0.0)),
         n_consistent=int(np.sum(s_final == 0.0)),
         n_total=n,
         s_min=float(np.min(s_final)),
@@ -986,7 +903,8 @@ def compute_si_from_vi(
 
     print(f"  [ScorePipeline] tau_eff={tau_effective:.3e}, sigma={sigma:.3e}, "
           f"soft_mode={soft_mode}, uninformative={uninformative}")
-    print(f"  [ScorePipeline] s: n_zero={diag['n_consistent']}/{n}, "
+    print(f"  [ScorePipeline] raw consistent={diag['n_raw_consistent']}/{n}; "
+          f"processed zero={diag['n_zero_processed']}/{n}, "
           f"min={diag['s_min']:.4f}, max={diag['s_max']:.4f}, mean={diag['s_mean']:.4f}")
 
     return out, diag
@@ -1154,15 +1072,8 @@ def select_vertices_stratified_farthest_delta(
         ratios = np.array([0.4, 0.2, 0.4], dtype=float)
     ratios = ratios / float(np.sum(ratios))
 
-    k_low = int(round(K * float(ratios[0])))
-    k_mid = int(round(K * float(ratios[1])))
-    k_high = int(K - k_low - k_mid)
-    k_low = max(1, min(k_low, K - 2))
-    k_mid = max(0, min(k_mid, K - k_low - 1))
-    k_high = int(K - k_low - k_mid)
-
     s = np.array([float(v["s"]) for v in vertices], dtype=float)
-    order = np.argsort(s)
+    order = np.argsort(s, kind="stable")
     verts_sorted = [vertices[i] for i in order]
     n = len(verts_sorted)
 
@@ -1171,10 +1082,15 @@ def select_vertices_stratified_farthest_delta(
     low = verts_sorted[:max(1, cut1)]
     mid = verts_sorted[max(1, cut1):max(cut2, cut1 + 1)]
     high = verts_sorted[max(cut2, cut1 + 1):]
+    k_low, k_mid, k_high = allocate_stratified_budget(
+        K, ratios, (len(low), len(mid), len(high))
+    )
 
     rng = np.random.default_rng(int(seed))
 
-    sel_low = select_vertices_farthest_delta(low, K=min(k_low, len(low)), initial_index=0)
+    sel_low = []
+    if k_low > 0 and len(low) > 0:
+        sel_low = select_vertices_farthest_delta(low, K=min(k_low, len(low)), initial_index=0)
 
     sel_mid = []
     if k_mid > 0 and len(mid) > 0:
@@ -1249,15 +1165,8 @@ def select_vertices_stratified_farthest(
         ratios = np.array([0.4, 0.2, 0.4], dtype=float)
     ratios = ratios / float(np.sum(ratios))
 
-    k_low = int(round(K * float(ratios[0])))
-    k_mid = int(round(K * float(ratios[1])))
-    k_high = int(K - k_low - k_mid)
-    k_low = max(1, min(k_low, K - 2))
-    k_mid = max(0, min(k_mid, K - k_low - 1))
-    k_high = int(K - k_low - k_mid)
-
     s = np.array([float(v["s"]) for v in vertices], dtype=float)
-    order = np.argsort(s)
+    order = np.argsort(s, kind="stable")
     verts_sorted = [vertices[i] for i in order]
     n = len(verts_sorted)
 
@@ -1266,10 +1175,15 @@ def select_vertices_stratified_farthest(
     low = verts_sorted[:max(1, cut1)]
     mid = verts_sorted[max(1, cut1):max(cut2, cut1 + 1)]
     high = verts_sorted[max(cut2, cut1 + 1):]
+    k_low, k_mid, k_high = allocate_stratified_budget(
+        K, ratios, (len(low), len(mid), len(high))
+    )
 
     rng = np.random.default_rng(int(seed))
 
-    sel_low = select_vertices_farthest(low, bounds, K=min(k_low, len(low)), seed=int(seed) + 11, initial_index=0)
+    sel_low = []
+    if k_low > 0 and len(low) > 0:
+        sel_low = select_vertices_farthest(low, bounds, K=min(k_low, len(low)), seed=int(seed) + 11, initial_index=0)
 
     sel_mid = []
     if k_mid > 0 and len(mid) > 0:
@@ -1303,31 +1217,6 @@ def _level_to_float(x) -> float:
     return float(arr[0])
 
 
-def _pick_order_by_symmetry(mat_c: np.ndarray, mat_f: np.ndarray) -> str:
-    sym_c = float(np.linalg.norm(mat_c - mat_c.T))
-    sym_f = float(np.linalg.norm(mat_f - mat_f.T))
-    return "C" if sym_c <= sym_f else "F"
-
-
-def _level_to_matrix(var, shape: Tuple[int, int], prefer_order: Optional[str] = None) -> np.ndarray:
-    arr = np.array(var.level(), dtype=float).reshape(-1)
-    if arr.size != shape[0] * shape[1]:
-        raise ValueError(f"Unexpected level size {arr.size} for shape {shape}")
-
-    mat_c = arr.reshape(shape, order="C")
-    mat_f = arr.reshape(shape, order="F")
-
-    if prefer_order is None:
-        if shape[0] == shape[1]:
-            order = _pick_order_by_symmetry(mat_c, mat_f)
-        else:
-            order = "C"
-    else:
-        order = prefer_order
-
-    return mat_c if order == "C" else mat_f
-
-
 def solve_vertex_fusion_sdp_mosek(
         vertices: List[Dict[str, object]],
         syn: SynthesisParams,
@@ -1349,8 +1238,6 @@ def solve_vertex_fusion_sdp_mosek(
     configure_mosek_license(verbose=True)
     import mosek.fusion as mf
 
-    du_max = syn.du_max
-    d_max = syn.d_max
     if decay_rate is None:
         decay_rate = getattr(syn, "decay_rate", 0.98)
 
@@ -1372,8 +1259,6 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
         active_indices, num_threads, max_iters, rel_gap, time_limit_sec,
         beta_lb, decay_rate, w_gamma, w_mu, w_beta, enforce_perf_all_vertices, x0_feas):
     import mosek.fusion as mf
-    du_max = syn.du_max
-    d_max = syn.d_max
 
     if verbose:
         M.setLogHandler(sys.stdout)
@@ -1398,11 +1283,14 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
 
     Q = M.variable("Q", mf.Domain.inPSDCone(16))
     Y = M.variable("Y", [4, 16], mf.Domain.unbounded())
-    # P1.9: when all selected vertices have s=0 (no-relax baselines), force beta=0 explicitly
-    # to make the LMI semantics match the standard non-relaxed bounded-real condition exactly.
     _all_zero_s = all(float(v.get("s", 0.0)) < 1e-12 for v in vertices)
-    beta_ub_effective = 0.0 if _all_zero_s else 1000.0
-    beta = M.variable("beta", mf.Domain.inRange(float(beta_lb), float(beta_ub_effective)))
+    if _all_zero_s:
+        if beta_lb > 0.0:
+            raise ValueError("beta_lb must be zero when every selected score is zero")
+        beta_domain = mf.Domain.equalsTo(0.0)
+    else:
+        beta_domain = mf.Domain.greaterThan(float(beta_lb))
+    beta = M.variable("beta", beta_domain)
     gamma2 = M.variable("gamma2", mf.Domain.greaterThan(0.0))
     mu = M.variable("mu", mf.Domain.greaterThan(1e-9))
 
@@ -1441,7 +1329,7 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
         Bi = v["B"];
         Ci = v["C"];
         Di = v["D"]
-        Sci = v["S"] * d_max
+        Sci = v["S"]
         s_i = float(v["s"])
 
         Ai_m = mf.Matrix.dense(Ai)
@@ -1489,7 +1377,7 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
         PERF = mf.Expr.vstack([rowp1, rowp2])
         M.constraint("perf_lmi_nominal", PERF, mf.Domain.inPSDCone(32))
 
-    rowu1 = mf.Expr.hstack([mf.Expr.mul(float(du_max ** 2), Q), mf.Expr.transpose(Y)])
+    rowu1 = mf.Expr.hstack([Q, mf.Expr.transpose(Y)])
     rowu2 = mf.Expr.hstack([Y, I4e])
     UINC = mf.Expr.vstack([rowu1, rowu2])
     M.constraint("input_inc", UINC, mf.Domain.inPSDCone(20))
@@ -1497,18 +1385,19 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
     term_main = mf.Expr.add(mf.Expr.mul(float(w_gamma), gamma2), mf.Expr.mul(float(w_mu), mu))
     obj = mf.Expr.add(term_main, mf.Expr.mul(float(w_beta), beta))
     M.objective("min_obj", mf.ObjectiveSense.Minimize, obj)
+    validation = None
     try:
         M.solve()
 
-        sol_status = M.getProblemStatus()
-        if sol_status != mf.ProblemStatus.PrimalAndDualFeasible:
-            print(f"  Warning: solver status {sol_status}, result may be suboptimal")
+        validation = validate_mosek_solution(M, allow_feasible=True)
+        if not validation["accepted"]:
+            raise RuntimeError(
+                "MOSEK result rejected by the shared status policy: "
+                + validation["reason"]
+            )
 
-        Qc = _level_to_matrix(Q, (16, 16), prefer_order=None)
-        Qf = _level_to_matrix(Q, (16, 16), prefer_order="F")
-        order = _pick_order_by_symmetry(Qc, Qf)
-        Qv = _level_to_matrix(Q, (16, 16), prefer_order=order)
-        Yv = _level_to_matrix(Y, (4, 16), prefer_order=order)
+        Qv = fusion_matrix_level(Q, 16, 16)
+        Yv = fusion_matrix_level(Y, 4, 16)
         Qv = 0.5 * (Qv + Qv.T)
 
         betav = max(_level_to_float(beta.level()), 0.0)
@@ -1520,6 +1409,7 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
 
         Kv = (la.solve(Qv.T, Yv.T)).T
 
+        status_payload = mosek_status_payload(validation)
         return dict(
             Q=Qv,
             Y=Yv,
@@ -1536,6 +1426,8 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
             w_gamma=np.array([w_gamma]),
             w_mu=np.array([w_mu]),
             w_beta=np.array([w_beta]),
+            objective_value=np.array([w_gamma * g2v + w_mu * muv + w_beta * betav]),
+            **status_payload,
             enforce_perf_all_vertices=np.array([1 if enforce_perf_all_vertices else 0]),
             success=True
         )
@@ -1544,6 +1436,7 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
         print(f"  Optimization failed: {str(e)}")
         print("  Returning dummy solution")
 
+        status_payload = mosek_exception_payload(e, validation)
         return dict(
             Q=np.eye(16),
             Y=np.zeros((4, 16)),
@@ -1560,6 +1453,8 @@ def _solve_vertex_fusion_inner(M, vertices, syn, verbose, eps_Q,
             w_gamma=np.array([w_gamma]),
             w_mu=np.array([w_mu]),
             w_beta=np.array([w_beta]),
+            objective_value=np.array([float("inf")]),
+            **status_payload,
             enforce_perf_all_vertices=np.array([0]),
             success=False
         )
@@ -1575,12 +1470,11 @@ def eval_vertex_lmi_violation(
         gamma2_val: float,
         beta_val: float,
         decay_rate: float,
-        d_max: float,
 ) -> float:
     """
     """
     Ai = v["A"]; Bi = v["B"]; Ci = v["C"]; Di = v["D"]
-    Sci = v["S"] * d_max
+    Sci = v["S"]
     s_i = float(v["s"])
 
     Y = K @ Q
@@ -1624,15 +1518,41 @@ def check_all_vertex_violations(
         gamma2_val: float,
         beta_val: float,
         decay_rate: float,
-        d_max: float,
 ) -> np.ndarray:
     """
     """
     violations = np.zeros(len(all_vertices))
     for i, v in enumerate(all_vertices):
         violations[i] = eval_vertex_lmi_violation(
-            v, K, Q, gamma2_val, beta_val, decay_rate, d_max
+            v, K, Q, gamma2_val, beta_val, decay_rate
         )
+    return violations
+
+
+def attach_full_solution_diagnostics(
+        solution: Dict[str, Any],
+        all_vertices: List[Dict[str, object]],
+        decay_rate: float,
+) -> Optional[np.ndarray]:
+    if not solution.get("success", False):
+        return None
+    violations = check_all_vertex_violations(
+        all_vertices, solution["K"], solution["Q"],
+        float(solution["gamma2"][0]), float(solution["beta"][0]),
+        decay_rate,
+    )
+    certified = np.asarray(
+        [float(vertex["s"]) == 0.0 for vertex in all_vertices], dtype=bool
+    )
+    solution["v_sur"] = np.asarray([float(np.max(violations))])
+    solution["v_cert"] = np.asarray([
+        float(np.max(violations[certified])) if np.any(certified) else float("nan")
+    ])
+    auxiliary = evaluate_auxiliary_lmi_residuals(
+        all_vertices, solution["K"], solution["Q"], float(solution["mu"][0])
+    )
+    for name, value in auxiliary.items():
+        solution[name] = np.asarray([value])
     return violations
 
 
@@ -1658,12 +1578,14 @@ def iterative_constraint_exchange(
         decay_rate = getattr(syn, "decay_rate", 0.98)
 
     N = len(all_vertices)
+    if N == 0 or K_budget < 1:
+        raise ValueError("ICE requires at least one vertex and a positive budget")
     K_budget = min(K_budget, N)
 
     s_all = np.array([float(v["s"]) for v in all_vertices], dtype=float)
 
     # --- Tier classification: low(0) / mid(1) / high(2) by s rank ---
-    order = np.argsort(s_all)
+    order = np.argsort(s_all, kind="stable")
     tier = np.zeros(N, dtype=int)
     n3 = max(1, N // 3)
     for rank, idx in enumerate(order):
@@ -1674,12 +1596,9 @@ def iterative_constraint_exchange(
         else:
             tier[idx] = 2
 
-    # P1.5: when all vertices have s=0 (baseline P0/P1 calls), no s>0 quota is meaningful;
+    # when all vertices have s=0 (baseline P0/P1 calls), no s>0 quota is meaningful;
     # set m_incon=0 so the swap-out search is not blocked. Otherwise keep 20% quota.
-    if np.any(s_all > 1e-12):
-        m_incon = max(1, int(np.ceil(0.2 * K_budget)))
-    else:
-        m_incon = 0
+    m_incon = compute_inconsistency_quota(s_all, K_budget, rho_incon=0.2)
 
     # --- Initial selection: stratified farthest-point sampling ---
     if bounds is not None:
@@ -1701,6 +1620,15 @@ def iterative_constraint_exchange(
         sorted_idx = sorted(range(N), key=lambda i: s_all[i])
         active_idx = set(sorted_idx[:K_budget])
 
+    active_positive = sum(s_all[i] > 0.0 for i in active_idx)
+    if active_positive < m_incon:
+        positive_pool = [i for i in np.argsort(-s_all, kind="stable") if s_all[i] > 0.0 and i not in active_idx]
+        removable_zero = [i for i in sorted(active_idx) if s_all[i] == 0.0]
+        for add_idx, remove_idx in zip(
+                positive_pool[:m_incon - active_positive], removable_zero):
+            active_idx.remove(remove_idx)
+            active_idx.add(int(add_idx))
+
     if verbose:
         n_s_pos = sum(1 for i in active_idx if s_all[i] > 1e-12)
         print(f"[IterExchange] Init: K={K_budget}, m_incon={m_incon}, "
@@ -1709,8 +1637,11 @@ def iterative_constraint_exchange(
     best_sol = None
     best_metric = (float("inf"), N, float("inf"))
     best_active_list = sorted(active_idx)
+    quota_relaxations = 0
+    rounds_attempted = 0
 
     for rnd in range(max_rounds):
+        rounds_attempted = rnd + 1
         active_list = sorted(active_idx)
         active_verts = [all_vertices[i] for i in active_list]
 
@@ -1733,7 +1664,7 @@ def iterative_constraint_exchange(
             w_mu=w_mu,
             w_beta=w_beta,
             enforce_perf_all_vertices=enforce_perf_all_vertices,
-            x0_feas=np.zeros(16),
+            x0_feas=None,
         )
 
         if not sol.get("success", False):
@@ -1750,7 +1681,7 @@ def iterative_constraint_exchange(
             print(f"  SDP solved: gamma={gamma_val:.4f}, beta={beta_val:.4f}")
 
         violations = check_all_vertex_violations(
-            all_vertices, K_ctrl, Q_val, gamma2_val, beta_val, decay_rate, syn.d_max
+            all_vertices, K_ctrl, Q_val, gamma2_val, beta_val, decay_rate
         )
 
         max_viol_idx = int(np.argmax(violations))
@@ -1780,7 +1711,7 @@ def iterative_constraint_exchange(
             break
 
         # --- Find swap-in: first violator outside active set ---
-        viol_order = np.argsort(-violations)
+        viol_order = np.argsort(-violations, kind="stable")
         swap_in_idx = None
         for cand in viol_order:
             cand = int(cand)
@@ -1822,8 +1753,11 @@ def iterative_constraint_exchange(
                     break
 
         if swap_out_idx is None:
-            if verbose:
-                print(f"  Cannot find removable vertex (m_incon={m_incon} constraint), stopping.")
+            swap_out_idx = candidates_remove[0] if candidates_remove else None
+            quota_relaxations += int(swap_out_idx is not None)
+            if verbose and swap_out_idx is not None:
+                print(f"  Quota relaxed for this exchange (m_incon={m_incon}).")
+        if swap_out_idx is None:
             break
 
         if verbose:
@@ -1831,6 +1765,7 @@ def iterative_constraint_exchange(
             s_old = float(all_vertices[swap_out_idx]["s"])
             print(f"  Swap: remove vertex {swap_out_idx} "
                   f"(viol={active_violations[swap_out_idx]:.6f}, s={s_old:.3e}, tier={tier[swap_out_idx]})"
+                  f" -> add vertex {swap_in_idx} "
                   f"(viol={swap_in_viol:.6f}, s={s_new:.3e}, tier={swap_in_tier})")
 
         active_idx.discard(swap_out_idx)
@@ -1840,6 +1775,16 @@ def iterative_constraint_exchange(
         raise RuntimeError("iterative_constraint_exchange: no feasible solution found")
 
     final_verts = [all_vertices[i] for i in best_active_list]
+    final_violations = attach_full_solution_diagnostics(
+        best_sol, all_vertices, decay_rate
+    )
+    if final_violations is None:
+        raise RuntimeError("ICE solution diagnostics require a feasible solution")
+    v_sur = float(best_sol["v_sur"][0])
+    best_sol["status"] = classify_surrogate_status(True, v_sur)
+    best_sol["quota_relaxations"] = np.array([quota_relaxations])
+    best_sol["exchange_rounds"] = np.array([rounds_attempted])
+    best_sol["active_vertex_indices"] = np.asarray(best_active_list, dtype=int)
     best_gamma = best_metric[2]
     if verbose:
         print(f"\n[IterExchange] Final: {len(final_verts)} vertices, "
@@ -1854,7 +1799,7 @@ def iterative_constraint_exchange(
 def ref_square_wave_x(
         t: float,
         amp: float = 0.5,
-        period: float = 16.0,  # P1-4: aligned with paper Table 1 (T_ref = 16 s)
+        period: float = 16.0,  # aligned with paper Table 1 (T_ref = 16 s)
         start_delay: float = 1.0,
 ) -> np.ndarray:
     if t < start_delay:
@@ -1927,9 +1872,9 @@ def build_multi_gust_profile(
         bias_frac: float = 0.20,
         avoid_ref_jumps: bool = True,
         ref_start_delay: float = 1.0,
-        ref_period: float = 16.0,  # P1.7: aligned with paper Table 1 (T_ref = 16 s)
+        ref_period: float = 16.0,  # aligned with paper Table 1 (T_ref = 16 s)
         seed_offset: int = 888,
-) -> Tuple[np.ndarray, List[Dict[str, float]]]:
+) -> Tuple[np.ndarray, List[Dict[str, float]], Dict[str, object]]:
     Ts = syn.Ts
     steps = int(round(seconds / Ts))
     if t_max is None:
@@ -1956,7 +1901,7 @@ def build_multi_gust_profile(
     if bias_frac > 0:
         v = rng.standard_normal(6)
         v = v / (np.linalg.norm(v) + 1e-12)
-        bias = v * (bias_frac * syn.d_max)
+        bias = DEFAULT_SCALES.T_d @ (v * bias_frac)
     else:
         bias = np.zeros(6, dtype=float)
 
@@ -1969,7 +1914,7 @@ def build_multi_gust_profile(
 
         v = rng.standard_normal(6)
         v = v / (np.linalg.norm(v) + 1e-12)
-        gvec = v * (amp * syn.d_max)
+        gvec = DEFAULT_SCALES.T_d @ (v * amp)
 
         k0 = int(round(t0 / Ts))
         k1 = int(round(t1 / Ts))
@@ -1979,10 +1924,8 @@ def build_multi_gust_profile(
         dbar[:, k0:k1] += gvec.reshape(6, 1)
         gusts.append(dict(t0=float(t0), t1=float(t1), amp=float(amp)))
 
-    for k in range(steps):
-        dbar[:, k] = saturate_norm(dbar[:, k], 1.0) * syn.d_max
-
-    return dbar, gusts
+    dbar, projection_stats = project_disturbance_physical(dbar, DEFAULT_SCALES)
+    return dbar, gusts, projection_stats
 
 
 # =========================================================
@@ -2002,10 +1945,8 @@ def apply_increment_limits(
         if np.any(np.abs(uc2 - before) > 1e-12):
             flags["rate_sat"] = True
 
-    before = uc2.copy()
-    uc2 = saturate_norm(uc2, syn.du_max)
-    if np.linalg.norm(uc2) > syn.du_max * (1 - 1e-12) and np.linalg.norm(before) > syn.du_max + 1e-12:
-        flags["norm_sat"] = True
+    uc2, projection_factor = project_increment_physical(uc2, DEFAULT_SCALES)
+    flags["norm_sat"] = bool(projection_factor < 1.0 - 1e-12)
 
     return uc2, flags
 
@@ -2040,12 +1981,13 @@ def simulate_tracking_with_disturbance_profile(
         noise_seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     Ts, g = syn.Ts, syn.g
-    # P1.8: accept an explicit per-trial noise seed; fall back to the default fixed seed
+    # accept an explicit per-trial noise seed; fall back to the default fixed seed
     # when None for backward compatibility (single-trial Stage-3 time-domain study).
     rng = np.random.default_rng(syn.seed + 2026 if noise_seed is None else int(noise_seed))
 
     steps = int(round(seconds / Ts))
-    A, B, S_c = build_vertex_matrices(p_true, Ts, g)
+    A, B, S_c = build_physical_matrices(p_true, Ts, g)
+    K_phys = gain_to_physical(K, DEFAULT_SCALES)
 
     Pref = build_reference_trajectory(Ts, steps, ref_fun)
 
@@ -2053,6 +1995,9 @@ def simulate_tracking_with_disturbance_profile(
         dbar_profile = np.zeros((6, steps), dtype=float)
     dbar_profile = np.asarray(dbar_profile, dtype=float)
     assert dbar_profile.shape == (6, steps)
+    dbar_profile, disturbance_stats = project_disturbance_physical(
+        dbar_profile, DEFAULT_SCALES
+    )
 
     x = np.zeros((16, steps + 1))
     u_c_raw = np.zeros((4, steps))
@@ -2074,9 +2019,15 @@ def simulate_tracking_with_disturbance_profile(
     for k in range(steps):
         x_ref = np.zeros(16)
         x_ref[0:3] = Pref[:, k]
-        e = x[:, k] - x_ref
+        x_feedback = x[:, k].copy()
+        if meas_noise_std > 0:
+            nu, _ = sample_capped_physical_residual(
+                rng, DEFAULT_SCALES, residual_std=meas_noise_std
+            )
+            x_feedback[0:12] += nu
+        e = x_feedback - x_ref
 
-        uc = (K @ e).reshape(4)
+        uc = (K_phys @ e).reshape(4)
         u_c_raw[:, k] = uc
 
         uc_limited, f1 = apply_increment_limits(uc, syn)
@@ -2093,14 +2044,10 @@ def simulate_tracking_with_disturbance_profile(
         x[:, k + 1] = A @ x[:, k] + B @ uc_eff_k + S_c @ dbar[:, k]
         x[12:16, k + 1] = u_next
 
-        if meas_noise_std > 0:
-            # P0.3 + P0-1 (round-6): hard-saturated residual on 12-state block.
-            nu = rng.standard_normal(12) * meas_noise_std
-            nu = _saturate_residual_norm(nu, float(syn.nu_E_max))
-            x[0:12, k + 1] += nu
-
     t = np.arange(steps + 1) * Ts
-    rho_lin = spectral_radius(A + B @ K)
+    rho_lin = spectral_radius(A + B @ K_phys)
+    raw_increment_norm = np.linalg.norm(increment_to_normalized(u_c_raw), axis=0)
+    applied_increment_norm = np.linalg.norm(increment_to_normalized(u_c_eff), axis=0)
 
     return dict(
         t=t,
@@ -2114,10 +2061,14 @@ def simulate_tracking_with_disturbance_profile(
         A_true=A,
         B_true=B,
         S_true=S_c,
+        K_physical=K_phys,
         rho=np.array([rho_lin]),
         sat_rate=flags_rate,
         sat_norm=flags_norm,
         sat_abs=flags_abs,
+        increment_raw_peak_normalized=float(np.max(raw_increment_norm)),
+        increment_applied_peak_normalized=float(np.max(applied_increment_norm)),
+        disturbance_stats=disturbance_stats,
     )
 
 
@@ -2146,8 +2097,8 @@ def compute_metrics_excess_multi_gust(
     rmse_pos = float(np.sqrt(np.mean(e1 ** 2)))
     rmse_ex = float(np.sqrt(np.mean(e_ex ** 2)))
 
-    iae_pos = trapz_sum(np.abs(e1), Ts)
-    iae_ex = trapz_sum(np.abs(e_ex), Ts)
+    iae_pos = discrete_time_sum(np.abs(e1), Ts)
+    iae_ex = discrete_time_sum(np.abs(e_ex), Ts)
 
     peak_pos = float(np.max(e1))
     peak_ex = float(np.max(e_ex))
@@ -2176,7 +2127,7 @@ def compute_metrics_excess_multi_gust(
 
         k1 = k_ref
         k2 = min(N, k1 + win_N)
-        iae_ex_post_list.append(trapz_sum(e_ex[k1:k2], Ts))
+        iae_ex_post_list.append(discrete_time_sum(e_ex[k1:k2], Ts))
         peak_ex_post_list.append(float(np.max(e_ex[k1:k2])) if k2 > k1 else float("nan"))
 
     settle_arr = np.array(settle_times, dtype=float)
@@ -2189,17 +2140,18 @@ def compute_metrics_excess_multi_gust(
 
     uc = sim_dist["u_c"]
     uabs = sim_dist["u_abs"]
-    uc_norm = np.linalg.norm(uc, axis=0)
-    uabs_norm = np.linalg.norm(uabs, axis=0)
+    uc_norm = np.linalg.norm(increment_to_normalized(uc), axis=0)
+    inv_Tu = np.diag(1.0 / np.diag(DEFAULT_SCALES.T_u))
+    uabs_norm = np.linalg.norm(inv_Tu @ uabs, axis=0)
 
-    energy_uc = trapz_sum(uc_norm ** 2, Ts)
-    energy_uabs = trapz_sum(uabs_norm ** 2, Ts)
+    energy_uc = discrete_time_sum(uc_norm ** 2, Ts)
+    energy_uabs = discrete_time_sum(uabs_norm ** 2, Ts)
 
     du_peak = float(np.max(uc_norm)) if uc_norm.size > 0 else float("nan")
     uabs_peak = float(np.max(uabs_norm)) if uabs_norm.size > 0 else float("nan")
 
     sat_tol = float(syn.sat_tol)
-    duty_du = float(np.mean(uc_norm >= sat_tol * syn.du_max)) if uc_norm.size > 0 else float("nan")
+    duty_du = float(np.mean(uc_norm >= sat_tol)) if uc_norm.size > 0 else float("nan")
     duty_abs = float(np.mean(sim_dist["sat_abs"] > 0)) if "sat_abs" in sim_dist else float("nan")
     duty_norm = float(np.mean(sim_dist["sat_norm"] > 0)) if "sat_norm" in sim_dist else float("nan")
     duty_rate = float(np.mean(sim_dist["sat_rate"] > 0)) if "sat_rate" in sim_dist else float("nan")
@@ -2223,6 +2175,9 @@ def compute_metrics_excess_multi_gust(
         duty_abs=duty_abs,
         duty_normsat=duty_norm,
         duty_ratesat=duty_rate,
+        du_cmd_peak=float(sim_dist["increment_raw_peak_normalized"]),
+        du_act_peak=float(sim_dist["increment_applied_peak_normalized"]),
+        disturbance_projection_rate=float(sim_dist["disturbance_stats"]["projection_rate"]),
         rho=float(sim_dist["rho"][0]),
     )
 
@@ -2362,11 +2317,11 @@ def plot_stage3_A_C_publication(
     _setup_axes(ax)
     _add_gust_shading(ax, gusts)
     for name, sim in sims_dist.items():
-        du = np.linalg.norm(sim["u_c"], axis=0)
+        du = np.linalg.norm(increment_to_normalized(sim["u_c"]), axis=0)
         ax.plot(t[:-1], du, linestyle=linestyle.get(name, "-"), label=display_name.get(name, name))
-    ax.axhline(syn.du_max, linestyle=":", linewidth=1.0, color="black", label=r"$\Delta u_{\max}$")
+    ax.axhline(1.0, linestyle=":", linewidth=1.0, color="black", label="normalized bound")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$\|\Delta u\|_2$")
+    ax.set_ylabel(r"$\|\bar u_c\|_2$")
     if syn.fig_show_titles:
         ax.set_title("Increment command norm (rate constraint activity)")
     ax.legend(frameon=False, loc="best", ncols=1)
@@ -2378,10 +2333,11 @@ def plot_stage3_A_C_publication(
     _setup_axes(ax)
     _add_gust_shading(ax, gusts)
     for name, sim in sims_dist.items():
-        ua = np.linalg.norm(sim["u_abs"], axis=0)
+        inv_Tu = np.diag(1.0 / np.diag(DEFAULT_SCALES.T_u))
+        ua = np.linalg.norm(inv_Tu @ sim["u_abs"], axis=0)
         ax.plot(t, ua, linestyle=linestyle.get(name, "-"), label=display_name.get(name, name))
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$\|u\|_2$")
+    ax.set_ylabel(r"$\|T_u^{-1}u\|_2$")
     if syn.fig_show_titles:
         ax.set_title("Absolute actuator command norm (with clipping)")
     ax.legend(frameon=False, loc="best", ncols=1)
@@ -2412,9 +2368,9 @@ def plot_stage3_A_C_publication(
     fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
     _setup_axes(ax)
     _add_gust_shading(ax, gusts)
-    dnorm = np.linalg.norm(sims_dist[any_key]["dbar"], axis=0)
+    dnorm = np.linalg.norm(disturbance_to_normalized(sims_dist[any_key]["dbar"]), axis=0)
     ax.plot(t[:-1], dnorm, linewidth=1.2, color="black", label=r"$\|\bar d\|_2$")
-    ax.axhline(syn.d_max, linestyle=":", linewidth=1.0, color="black", label=r"$d_{\max}$")
+    ax.axhline(1.0, linestyle=":", linewidth=1.0, color="black", label="normalized bound")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel(r"$\|\bar d\|_2$")
     if syn.fig_show_titles:
@@ -2514,12 +2470,12 @@ def plot_stage3_story_figure(
     _add_gust_shading(ax_du, gusts)
     for name in names:
         sim = sims_dist[name]
-        du = np.linalg.norm(sim["u_c"], axis=0)
+        du = np.linalg.norm(increment_to_normalized(sim["u_c"]), axis=0)
         ax_du.plot(t[:-1], du, linestyle=LS.get(name, "-"),
                    label=PRETTY.get(name, name))
-    ax_du.axhline(syn.du_max, linestyle=":", linewidth=1.0, color="black",
-                  label=r"$\Delta u_{\max}$")
-    ax_du.set_ylabel(r"$\|\Delta u\|_2$")
+    ax_du.axhline(1.0, linestyle=":", linewidth=1.0, color="black",
+                  label="normalized bound")
+    ax_du.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
     ax_du.legend(frameon=False, loc="best", ncols=2, fontsize=6)
 
     _setup_axes(ax_delta)
@@ -2775,7 +2731,7 @@ def plot_fusion_mechanism_and_histogram(
     ax1.set_title(f"Fusion Geometry: {x_name} vs {y_name}")
 
     cbar = fig1.colorbar(cf, ax=ax1)
-    # P0-7: this field is the RAW data-inconsistency score s_i^raw (not the processed s_i).
+    # this field is the RAW data-inconsistency score s_i^raw (not the processed s_i).
     cbar.set_label(r"Raw inconsistency score $s_i^{\mathrm{raw}}$")
 
     ax1.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9)
@@ -2916,10 +2872,12 @@ def synthesize_controllers_for_stage3(
 ) -> Dict[str, object]:
     p_nom = {k: 0.5 * (getattr(bounds, k)[0] + getattr(bounds, k)[1])
              for k in bounds.__dataclass_fields__.keys()}
-    A_nom_lqr, B_nom_lqr, _ = build_vertex_matrices(p_nom, syn.Ts, syn.g)
+    A_nom_lqr, B_nom_lqr, _ = build_physical_matrices(p_nom, syn.Ts, syn.g)
     Qlqr = np.diag(syn.Qx_lqr)
     Rlqr = np.diag(syn.Ru_lqr)
-    K_nom_lqr = dlqr(A_nom_lqr, B_nom_lqr, Qlqr, Rlqr)
+    K_nom_lqr = gain_to_normalized(
+        dlqr(A_nom_lqr, B_nom_lqr, Qlqr, Rlqr), DEFAULT_SCALES
+    )
     rng_data = np.random.default_rng(syn.seed + 999)
     p_data_source = {}
     print("\n[Data Generation] Sampling random 'historical' plant parameters within bounds:")
@@ -2935,44 +2893,59 @@ def synthesize_controllers_for_stage3(
         p_data_source, syn, L=1200, excite_scale=1.2, meas_noise_std=0.0005,
         K_fb=K_nom_lqr, p_lqr=p_nom
     )
-    A_nom, B_nom, S_nom = build_vertex_matrices(p_nom, syn.Ts, syn.g)
-    p_worst_Sc = dict(p_nom)
-    for k_name in ["kx", "ky", "kz", "kp", "kq", "kr"]:
-        p_worst_Sc[k_name] = getattr(bounds, k_name)[0]
-    _, _, S_worst = build_vertex_matrices(p_worst_Sc, syn.Ts, syn.g)
+    batch_sat = batch["input_saturation_stats"]
+    print("  [Offline input] increment/absolute saturation rates: "
+          f"{batch_sat['increment_saturation_rate']:.4f}/"
+          f"{batch_sat['absolute_saturation_rate']:.4f}; "
+          "normalized command/applied increment peaks: "
+          f"{batch_sat['command_peak_normalized']:.4f}/"
+          f"{batch_sat['applied_peak_normalized']:.4f}")
 
     # --- Fixed disturbance bound (paper-consistent: $\bar d_{\max}$ in Table 1) ---
-    print(f"  [Stage3] Using fixed disturbance bound: d_max = {syn.d_max:.4f}")
+    print(f"  [Stage3] Fixed common disturbance channel scale: d_max = {syn.d_max:.4f}")
 
-    # --- P0-3: PSD upper bound W_c on the disturbance-injection Gram matrix ---
+    # --- PSD upper bound W_c on the disturbance-injection Gram matrix ---
     W_c, info_Wc = build_disturbance_psd_bound(
-        bounds, syn, n_internal_samples=1000, safety_factor=1.05,
+        bounds, syn, batch_generator=p_data_source,
+        n_internal_samples=1000, safety_factor=1.05,
     )
-    print(f"  [P0-3 W_c] alpha_c = {info_Wc['alpha']:.6e}  "
+    print(f"  [W_c] alpha_c = {info_Wc['alpha']:.6e}  "
           f"(safety_factor={info_Wc['safety_factor']:.3f}, "
           f"vertex_max_eig={info_Wc['vertex_max_eig']:.6e}, "
           f"interior_max_eig={info_Wc['interior_max_eig']:.6e})")
-    print(f"  [P0-3 W_c verify] vertex set : min PSD gap = {info_Wc['min_psd_gap_vertex']:.3e}, "
+    print(f"  [W_c verify] vertex set : min PSD gap = {info_Wc['min_psd_gap_vertex']:.3e}, "
           f"violations = {info_Wc['n_violate_vertex']}/{info_Wc['n_vertices']}  (formal)")
-    print(f"  [P0-3 W_c verify] interior   : min PSD gap = {info_Wc['min_psd_gap_interior']:.3e}, "
+    print(f"  [W_c verify] interior   : min PSD gap = {info_Wc['min_psd_gap_interior']:.3e}, "
           f"violations = {info_Wc['n_violate_interior']}/{info_Wc['n_internal_samples']}  (sanity)")
+    print(f"  [W_c generator] old alpha={info_Wc['old_vertex_only_alpha']:.6e}, "
+          f"new alpha={info_Wc['alpha']:.6e}, changed={info_Wc['generator_changed_bound']}, "
+          f"generator PSD gap={info_Wc['generator_psd_gap']:.3e}")
 
-    # --- P0-1: structured sampled-state residual upper bound W_E ---
+    # --- structured sampled-state residual upper bound W_E ---
     L_batch = int(batch["X_t"].shape[1])
     W_E = build_structured_residual_bound(L_batch, float(syn.nu_E_max))
-    print(f"  [P0-1 W_E] DETERMINISTIC bound: sigma_E_x = {syn.sigma_E_x:.2e} (Gaussian std), "
-          f"nu_E_max = {syn.nu_E_max:.2e} (L2 cap); "
-          f"||W_E^x||_op = {syn.nu_E_max ** 2 * L_batch:.3e} (= {L_batch}*nu_E_max^2, top 12); W_E^z = 0")
+    print(f"  [W_E] deterministic normalized residual bound: "
+          f"||W_E^x||_op = {np.max(np.diag(W_E[:12, :12])):.3e}; W_E^z = 0")
 
-    batch["S_c"] = S_worst
+    record_residual_check = verify_realized_record_residual(batch, W_E)
+    batch["record_residual_check"] = record_residual_check
+    print(f"  [W_E realized check] min PSD gap = "
+          f"{record_residual_check['minimum_psd_gap']:.3e}; "
+          f"max output residual = "
+          f"{record_residual_check['maximum_output_residual']:.3e}; "
+          f"max input-memory residual = "
+          f"{record_residual_check['maximum_input_memory_residual']:.3e}")
+
     batch["W_c"] = W_c
     batch["W_E"] = W_E
     Psi = build_psi_data(batch, syn)
 
-    # --- P0-2: MODEL residual diagnostic ---
-    verify_data_residual_bound(batch, syn, bounds, W_c, verbose=True)
+    # --- MODEL residual diagnostic ---
+    model_residual_all = verify_data_residual_bound(
+        batch, syn, bounds, W_c, verbose=True
+    )
 
-    # P1-2: use FIG4_PAIRS as the single source of truth for plot output names.
+    # use FIG4_PAIRS as the single source of truth for plot output names.
     plot_pairs = list(FIG4_PAIRS)
 
     print(f"\nGenerating {len(plot_pairs)} geometric fusion plots...")
@@ -3081,16 +3054,29 @@ def synthesize_controllers_for_stage3(
           f"n={len(verts_norm)}, n_zero={score_diag['n_consistent']}, "
           f"soft_mode={score_diag['soft_mode']}")
 
-    # --- P0-2 (round-6): residual diagnostic on processed score-zero subset I0 ---
+    # --- residual diagnostic on processed score-zero subset I0 ---
     I0_vertices = [v["p"] for v in verts_norm if float(v["s"]) == 0.0]
     if I0_vertices:
-        print(f"  [P0-2 I0] |I0| (processed s==0) = {len(I0_vertices)}/{len(verts_norm)}, "
+        print(f"  [I0 residual diagnostic] |I0| (processed s==0) = {len(I0_vertices)}/{len(verts_norm)}, "
               f"tau_eff = {score_diag.get('tau_effective', float('nan')):.3e}, "
               f"soft_mode = {score_diag.get('soft_mode', False)}")
-        verify_data_residual_bound(batch, syn, bounds, W_c,
-                                   score_zero_vertices=I0_vertices, verbose=True)
+        model_residual_i0 = verify_data_residual_bound(
+            batch, syn, bounds, W_c,
+            score_zero_vertices=I0_vertices, verbose=True,
+        )
     else:
-        print(f"  [P0-2 I0] processed score-zero subset I0 is EMPTY; skipping residual diagnostic on I0")
+        model_residual_i0 = None
+        print(f"  [I0 residual diagnostic] processed score-zero subset I0 is EMPTY; skipping residual diagnostic on I0")
+
+    diagnostic_payload = build_fusion_diagnostics_payload(
+        batch, verts_norm, Psi, W_c, W_E, info_Wc, score_diag,
+        list(bounds.__dataclass_fields__.keys()), p_data_source,
+        model_residual_all=model_residual_all,
+        model_residual_certified=model_residual_i0,
+    )
+    diagnostic_path = result_path("caches", "expanded_data_fusion_diagnostics.npz")
+    np.savez_compressed(diagnostic_path, **diagnostic_payload)
+    print(f"Saved data-fusion diagnostics to: {diagnostic_path}")
 
     K = int(min(int(direct_vertex_limit), int(baseline1_vertices)))
     K = max(1, K)
@@ -3142,8 +3128,9 @@ def synthesize_controllers_for_stage3(
         w_mu=syn.w_mu,
         w_beta=syn.w_beta,
         enforce_perf_all_vertices=enforce_perf_all_vertices,
-        x0_feas=np.zeros(16),
+        x0_feas=None,
     )
+    attach_full_solution_diagnostics(sol_baseB, verts_norm, syn.decay_rate)
 
     if sol_baseB.get("success", False):
         K_baseB = sol_baseB["K"]
@@ -3160,6 +3147,11 @@ def synthesize_controllers_for_stage3(
         p_data_source=p_data_source,
         batch=batch,
         Psi=Psi,
+        W_c=W_c,
+        W_E=W_E,
+        wc_diagnostics=info_Wc,
+        score_diagnostics=score_diag,
+        verts_norm=verts_norm,
         vertices_common=verts_common,
         K_proposed=K_prop,
         gamma_proposed=gamma_prop,
@@ -3227,9 +3219,15 @@ def main_stage3_time_domain_validation_A_C(
     print("\nUsing data source parameters with 5% noise for validation")
     p_true = out['p_data_source']
     p_true_raw = {k: v * rng.uniform(0.95, 1.05) for k, v in p_true.items()}
-    # P1.10: clip to prior bounds for strict near-source validation within prior box
+    outside_raw = [
+        k for k, value in p_true_raw.items()
+        if not (getattr(bounds, k)[0] <= value <= getattr(bounds, k)[1])
+    ]
+    # clip to prior bounds for strict near-source validation within prior box
     p_true = {k: float(np.clip(v_raw, getattr(bounds, k)[0], getattr(bounds, k)[1]))
               for k, v_raw in p_true_raw.items()}
+    print(f"  Within-prior validation: raw local sample outside on "
+          f"{len(outside_raw)}/{len(p_true_raw)} parameter channels; clipped channels={outside_raw}")
 
     print("\n" + "=" * 40)
     print(" True plant parameters:")
@@ -3252,7 +3250,7 @@ def main_stage3_time_domain_validation_A_C(
         raise ValueError("ref_type must be 'square'")
 
     dbar0 = np.zeros((6, int(round(seconds / syn.Ts))), dtype=float)
-    dbar1, gusts = build_multi_gust_profile(
+    dbar1, gusts, gust_projection_stats = build_multi_gust_profile(
         syn=syn,
         seconds=seconds,
         num_gusts=num_gusts,
@@ -3267,6 +3265,11 @@ def main_stage3_time_domain_validation_A_C(
         seed_offset=888,
     )
     print(f"Multi-gust disturbance: {len(gusts)} gusts, bias={bias_frac:.3g}")
+    print(f"  normalized disturbance raw/applied peak = "
+          f"{gust_projection_stats['raw_peak_normalized']:.3f}/"
+          f"{gust_projection_stats['applied_peak_normalized']:.3f}; "
+          f"projection rate = {gust_projection_stats['projection_rate']:.3f}, "
+          f"mean factor = {gust_projection_stats['average_projection_factor']:.3f}")
     for i, g in enumerate(gusts[:5]):
         print(f"  gust {i}: t={g['t0']:.2f}-{g['t1']:.2f}s, amp={g['amp']:.2f}")
 
@@ -3326,13 +3329,15 @@ def main_stage3_time_domain_validation_A_C(
         print(f"  settle_worst_excess         = {met['settle_worst_excess']:.6g} s")
         print(f"  IAE_excess_postgust_avg      = {met['IAE_excess_postgust_avg']:.6g}  (win={post_window}s)")
         print(f"  peak_excess_postgust_avg     = {met['peak_excess_postgust_avg']:.6g}  (win={post_window}s)")
-        print(f"  du_peak                     = {met['du_peak']:.6g}   (limit={syn.du_max})")
+        print(f"  normalized du_peak          = {met['du_peak']:.6g}   (limit=1)")
         print(
             f"  uabs_peak                   = {met['uabs_peak']:.6g}   (u_abs bounds={syn.u_abs_min}..{syn.u_abs_max})")
-        print(f"  duty_du (||u_c|| near max)   = {met['duty_du']:.3f}")
+        print(f"  duty_du (normalized increment near limit) = {met['duty_du']:.3f}")
         print(f"  duty_abs (abs clamp)         = {met['duty_abs']:.3f}")
         print(f"  duty_normsat (norm sat)      = {met['duty_normsat']:.3f}")
         print(f"  duty_ratesat (rate sat)      = {met['duty_ratesat']:.3f}")
+        print(f"  max normalized command/applied increment = "
+              f"{met['du_cmd_peak']:.3f}/{met['du_act_peak']:.3f}")
         print(f"  rho(A+BK) (linear proxy)     = {met['rho']:.6g}")
         if met["rho"] >= 1.0:
             print("  Note: rho(A+BK) >= 1, linear stability may be marginal")
@@ -3354,8 +3359,14 @@ def main_stage3_time_domain_validation_A_C(
         gamma_map=gamma_map, stem="Exp1_metrics_table",
     )
 
+    parameter_keys = list(bounds.__dataclass_fields__.keys())
     save_payload: Dict[str, Any] = dict(
-        p_true=p_true,
+        parameter_keys=np.asarray(parameter_keys),
+        p_true=np.asarray([p_true[k] for k in parameter_keys], dtype=float),
+        p_true_raw=np.asarray([p_true_raw[k] for k in parameter_keys], dtype=float),
+        p_true_raw_outside_channel_count=np.array([len(outside_raw)]),
+        p_true_raw_outside_plant_count=np.array([int(bool(outside_raw))]),
+        p_true_applied_outside_plant_count=np.array([0]),
         gamma_proposed=np.array([out["gamma_proposed"]]),
         gamma_baselineB=np.array([out["gamma_baselineB"]]),
         Ts=np.array([syn.Ts]),
@@ -3366,6 +3377,43 @@ def main_stage3_time_domain_validation_A_C(
         seconds=np.array([seconds]),
         num_gusts=np.array([len(gusts)]),
         bias_frac=np.array([bias_frac]),
+        disturbance_raw_peak_normalized=np.array([gust_projection_stats["raw_peak_normalized"]]),
+        disturbance_applied_peak_normalized=np.array([gust_projection_stats["applied_peak_normalized"]]),
+        disturbance_projection_count=np.array([gust_projection_stats["projection_count"]]),
+        disturbance_projection_rate=np.array([gust_projection_stats["projection_rate"]]),
+        disturbance_average_projection_factor=np.array([gust_projection_stats["average_projection_factor"]]),
+        state_scales=np.asarray(DEFAULT_SCALES.state),
+        input_memory_scales=np.asarray(DEFAULT_SCALES.input_memory),
+        increment_scales=np.asarray(DEFAULT_SCALES.increment),
+        disturbance_scales=np.asarray(DEFAULT_SCALES.disturbance),
+        residual_cap_scales=np.asarray(DEFAULT_SCALES.residual_cap),
+        residual_standard_deviations=np.asarray(DEFAULT_SCALES.residual_std),
+        active_vertex_parameters=np.asarray(
+            [[v["p"][k] for k in parameter_keys] for v in out["vertices_common"]],
+            dtype=float,
+        ),
+        active_vertex_scores=np.asarray([v["s"] for v in out["vertices_common"]]),
+        zero_score_count=np.array([
+            sum(float(v["s"]) == 0.0 for v in out["verts_norm"])
+        ]),
+        total_vertex_count=np.array([len(out["verts_norm"])]),
+        eps_pass=np.array([EPS_PASS]),
+        eps_near=np.array([EPS_NEAR]),
+        proposed_solver_success=np.array([bool(out["sol_proposed"].get("success", False))]),
+        proposed_surrogate_status=np.asarray([
+            str(out["sol_proposed"].get("status", "not_checked"))
+        ]),
+        baseline_solver_success=np.array([bool(out["sol_baselineB"].get("success", False))]),
+        proposed_objective=np.array([
+            syn.w_gamma * float(out["sol_proposed"]["gamma2"][0])
+            + syn.w_mu * float(out["sol_proposed"]["mu"][0])
+            + syn.w_beta * float(out["sol_proposed"]["beta"][0])
+        ]),
+        baseline_objective=np.array([
+            syn.w_gamma * float(out["sol_baselineB"]["gamma2"][0])
+            + syn.w_mu * float(out["sol_baselineB"]["mu"][0])
+            + syn.w_beta * float(out["sol_baselineB"]["beta"][0])
+        ]),
         eps_excess=np.array([eps_excess]),
         hold_time=np.array([hold_time]),
         post_window=np.array([post_window]),
@@ -3390,6 +3438,17 @@ def main_stage3_time_domain_validation_A_C(
     for k, v in out["sol_baselineB"].items():
         if isinstance(v, np.ndarray):
             save_payload[f"baselineB_{k}"] = v
+
+    for controller, simulation in sims_dist.items():
+        safe = "".join(ch if ch.isalnum() else "_" for ch in controller).strip("_")
+        append_tracking_simulation_payload(
+            save_payload, f"disturbed_{safe}", simulation
+        )
+    for controller, simulation in sims_nodist.items():
+        safe = "".join(ch if ch.isalnum() else "_" for ch in controller).strip("_")
+        append_tracking_simulation_payload(
+            save_payload, f"undisturbed_{safe}", simulation
+        )
 
     save_payload["dbar_profile"] = dbar1
 

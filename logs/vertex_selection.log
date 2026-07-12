@@ -6,69 +6,73 @@ Phase 1: Controller Synthesis
 [Data Generation] Sampling random 'historical' plant parameters within bounds:
   sigma_t: 1.0195 (Nom: 0.8750)
   Simulating batch data (L=1200) from random plant...
-  [Stage3] Using fixed disturbance bound: d_max = 2.4000
-  [P0-3 W_c] alpha_c = 1.044250e-02  (safety_factor=1.050, vertex_max_eig=9.945239e-03, interior_max_eig=9.945200e-03)
-  [P0-3 W_c verify] vertex set : min PSD gap = 4.973e-04, violations = 0/1024  (formal)
-  [P0-3 W_c verify] interior   : min PSD gap = 4.973e-04, violations = 0/1000  (sanity)
-  [P0-1 W_E] DETERMINISTIC bound: sigma_E_x = 5.00e-04 (Gaussian std), nu_E_max = 3.00e-03 (L2 cap); ||W_E^x||_op = 1.080e-02 (= 1200*nu_E_max^2, top 12); W_E^z = 0
-  [P0-2 DIAGNOSTIC, MODEL-MISMATCH diagnostic over ALL prior vertices (NOT a residual check)]
-    rho_E = max_i lambda_max((1/L) E_i E_i^T) = 2.5466e-01 (@ vertex 28/1024)
-    per-sample disturbance proxy d_max^2 * alpha_c = 6.0149e-02
-    per-sample residual cap      nu_E_max^2        = 9.0000e-06  (formal W_E uses this)
-    per-sample residual std^2    sigma_E_x^2       = 2.5000e-07  (unsaturated Gaussian variance)
-    (scalar DIAGNOSTIC only; formal W_E in build_psi_data is built independently from nu_E_max via build_structured_residual_bound)
+  [Offline input] increment/absolute saturation rates: 0.0000/0.0000; normalized command/applied increment peaks: 0.8502/0.8502
+  [Stage3] Fixed common disturbance channel scale: d_max = 2.4000
+  [W_c] alpha_c = 6.240475e-02  (safety_factor=1.050, vertex_max_eig=5.943310e-02, interior_max_eig=5.943286e-02)
+  [W_c verify] vertex set : min PSD gap = 2.972e-03, violations = 0/1024  (formal)
+  [W_c verify] interior   : min PSD gap = 2.972e-03, violations = 0/1000  (sanity)
+  [W_c generator] old alpha=6.240475e-02, new alpha=6.240475e-02, changed=False, generator PSD gap=2.984e-03
+  [W_E] deterministic normalized residual bound: ||W_E^x||_op = 1.728e-01; W_E^z = 0
+  [W_E realized check] min PSD gap = -3.476e-19; max output residual = 8.882e-16; max input-memory residual = 1.110e-16
+  [Residual diagnostic, MODEL-MISMATCH diagnostic over ALL prior vertices (NOT a residual check)]
+    rho_E = max_i lambda_max((1/L) E_i E_i^T) = 3.2271e+00 (@ vertex 28/1024)
+    normalized disturbance proxy alpha_c = 6.2405e-02
+    normalized residual-cap proxy = 1.4400e-04
+    normalized residual-std proxy = 4.0000e-06
+    (scalar diagnostic only; formal W_E in build_psi_data is built independently from nu_E_max via build_structured_residual_bound)
 
 Generating 8 geometric fusion plots...
     Plotting 2D slice: Jx vs Jy ...
-    Plotting 2D slice: Jy vs kp ...
-    Plotting 2D slice: Jz vs kx ...
-    Plotting 2D slice: kp vs kr ...
-    Plotting 2D slice: ky vs kq ...
-    Plotting 2D slice: sigma_t vs Jy ...
-    Plotting 2D slice: ky vs kr ...
+    Plotting 2D slice: Jx vs kp ...
+    Plotting 2D slice: Jy vs kq ...
+    Plotting 2D slice: Jz vs kr ...
+    Plotting 2D slice: sigma_t vs kz ...
+    Plotting 2D slice: kx vs ky ...
     Plotting 2D slice: kp vs kq ...
-[SelfCheck] (hist) p_data_source: s_raw=6.588537e-12 (mode=lambda_max)
+    Plotting 2D slice: ky vs kr ...
+[SelfCheck] (hist) p_data_source: s_raw=9.667930e-11 (mode=lambda_max)
   Plots generated
 
-Score statistics: n=1024, min=6.5459e-12, max=1.6343e+02, mean=1.1311e+02
-  Histogram: [256   0   0   0   0   0   0   0 256 512]
+Score statistics: n=1024, min=3.7939e+02, max=3.7249e+03, mean=2.7807e+03
+  Histogram: [256   0   0   0   0   0   0   0 128 640]
 
-[SelfCheck] p_data_source (data-generating plant): s_raw=6.588537e-12 (mode=lambda_max) | among pool: min=6.545851e-12, max=1.634297e+02, percentile=2.54% (<=count 26/1024), gap_to_min=4.269e-14
-[SelfCheck] p_nom (nominal center): s_raw=6.630191e-12 (mode=lambda_max) | among pool: min=6.545851e-12, max=1.634297e+02, percentile=14.36% (<=count 147/1024), gap_to_min=8.434e-14
+[SelfCheck] p_data_source (data-generating plant): s_raw=9.667930e-11 (mode=lambda_max) | among pool: min=3.793872e+02, max=3.724941e+03, percentile=0.00% (<=count 0/1024), gap_to_min=-3.794e+02
+[SelfCheck] p_nom (nominal center): s_raw=8.876447e+02 (mode=lambda_max) | among pool: min=3.793872e+02, max=3.724941e+03, percentile=25.00% (<=count 256/1024), gap_to_min=5.083e+02
   [ScorePipeline] SOFT-CONSISTENCY mode: hard_ratio(tau=0)=0.0000 < 0.01
-  [ScorePipeline]   tau_effective=6.616883e-12 (rho=0.1 quantile of raw scores)
-  [ScorePipeline] tau_eff=6.617e-12, sigma=1.356e-01, soft_mode=True, uninformative=False
-  [ScorePipeline] s: n_zero=129/1024, min=0.0000, max=0.6337, mean=0.4525
-[Vertices-Pool] robust s: min=0.000e+00, max=6.337e-01, n=1024, n_zero=129, soft_mode=True
-  [P0-2 I0] |I0| (processed s==0) = 129/1024, tau_eff = 6.617e-12, soft_mode = True
-  [P0-2 DIAGNOSTIC, processed score-zero subset I0 (a-posteriori residual diagnostic)]
-    rho_E = max_i lambda_max((1/L) E_i E_i^T) = 3.6325e-02 (@ vertex 52/129)
-    per-sample disturbance proxy d_max^2 * alpha_c = 6.0149e-02
-    per-sample residual cap      nu_E_max^2        = 9.0000e-06  (formal W_E uses this)
-    per-sample residual std^2    sigma_E_x^2       = 2.5000e-07  (unsaturated Gaussian variance)
-    (scalar DIAGNOSTIC only; formal W_E in build_psi_data is built independently from nu_E_max via build_structured_residual_bound)
+  [ScorePipeline]   tau_effective=3.795228e+02 (rho=0.1 quantile of raw scores)
+  [ScorePipeline] tau_eff=3.795e+02, sigma=2.779e+00, soft_mode=True, uninformative=False
+  [ScorePipeline] s: n_zero=103/1024, min=0.0000, max=0.6334, mean=0.4633
+[Vertices-Pool] robust s: min=0.000e+00, max=6.334e-01, n=1024, n_zero=103, soft_mode=True
+  [I0 residual diagnostic] |I0| (processed s==0) = 103/1024, tau_eff = 3.795e+02, soft_mode = True
+  [Residual diagnostic, processed score-zero subset I0 (a-posteriori residual diagnostic)]
+    rho_E = max_i lambda_max((1/L) E_i E_i^T) = 4.4038e-01 (@ vertex 35/103)
+    normalized disturbance proxy alpha_c = 6.2405e-02
+    normalized residual-cap proxy = 1.4400e-04
+    normalized residual-std proxy = 4.0000e-06
+    (scalar diagnostic only; formal W_E in build_psi_data is built independently from nu_E_max via build_structured_residual_bound)
+Saved data-fusion diagnostics to: <repository>/results_revised\caches\vertex_selection_data_diagnostics.npz
 
 ============================================================
 [IterConstraintExchange] Starting with K_budget=20, max_rounds=4
 ============================================================
-[IterExchange] Init: K=20, m_incon=4, s>0 in active=14, stratified=yes
+[IterExchange] Init: K=20, m_incon=4, s>0 in active=17, stratified=yes
 
-[Round 1/4] Active: 20, s range: [0.000e+00, 6.278e-01], s>0: 14
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  SDP solved: gamma=4.4142, beta=10.6201
-  Verification: max_violation=0.000001 (vertex 871), n_violated=0/1024, consistent_violated=0
+[Round 1/4] Active: 20, s range: [0.000e+00, 6.293e-01], s>0: 17
+[MOSEK] Using configured license: <configured MOSEK license path>
+  SDP solved: gamma=4.3573, beta=26.9255
+  Verification: max_violation=0.000037 (vertex 775), n_violated=0/1024, consistent_violated=0
   *** Converged: all vertices satisfy LMI (tol=1.0e-04) ***
 
-[IterExchange] Final: 20 vertices, gamma=4.4142, max_viol=0.000001, n_violated=0
+[IterExchange] Final: 20 vertices, gamma=4.3573, max_viol=0.000037, n_violated=0
 
 [BaselineB] Same 20 vertices as Proposed, s_i=0 (no relaxation). threads=1
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
+[MOSEK] Using configured license: <configured MOSEK license path>
 Problem
   Name                   : vertex_fusion
   Objective sense        : minimize
   Type                   : CONIC (conic optimization problem)
   Constraints            : 0
-  Affine conic cons.     : 43 (40759 rows)
+  Affine conic cons.     : 42 (40606 rows)
   Disjunctive cons.      : 0
   Cones                  : 0
   Scalar variables       : 68
@@ -83,48 +87,44 @@ Eliminator started.
 Freed constraints in eliminator : 0
 Eliminator terminated.
 Eliminator - tries                  : 1                 time                   : 0.00
-Lin. dep.  - tries                  : 1                 time                   : 0.00
+Lin. dep.  - tries                  : 1                 time                   : 0.02
 Lin. dep.  - primal attempts        : 1                 successes              : 1
 Lin. dep.  - dual attempts          : 0                 successes              : 0
 Lin. dep.  - primal deps.           : 0                 dual deps.             : 0
-Presolve terminated. Time: 0.00
+Presolve terminated. Time: 0.02
 GP based matrix reordering started.
 GP based matrix reordering terminated.
 Optimizer  - threads                : 1
 Optimizer  - solved problem         : the primal
-Optimizer  - Constraints            : 40759
+Optimizer  - Constraints            : 40606
 Optimizer  - Cones                  : 1
 Optimizer  - Scalar variables       : 67                conic                  : 65
-Optimizer  - Semi-definite variables: 44                scalarized             : 40895
-Factor     - setup time             : 59.33
-Factor     - dense det. time        : 25.02             GP order time          : 0.00
-Factor     - nonzeros before factor : 2.60e+08          after factor           : 2.97e+08
-Factor     - dense dim.             : 0                 flops                  : 4.21e+12
-Factor     - GP saved nzs           : 7.74e+06          GP saved flops         : 2.93e+11
+Optimizer  - Semi-definite variables: 43                scalarized             : 40742
+Factor     - setup time             : 64.14
+Factor     - dense det. time        : 25.08             GP order time          : 0.01
+Factor     - nonzeros before factor : 2.57e+08          after factor           : 2.94e+08
+Factor     - dense dim.             : 0                 flops                  : 4.14e+12
+Factor     - GP saved nzs           : 7.70e+06          GP saved flops         : 2.90e+11
 ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME
-0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  59.38
-1   4.9e-01  4.9e-01  3.4e-01  9.27e-01   5.973959816e-01   5.866561770e-01   4.9e-01  134.20
-2   7.8e-02  7.8e-02  1.8e-02  1.08e+00   1.075582691e+00   1.056592097e+00   7.8e-02  217.36
-3   1.8e-02  1.8e-02  2.5e-03  1.07e+00   1.962585712e+00   1.962601782e+00   1.8e-02  301.86
-4   4.5e-03  4.5e-03  4.0e-04  7.09e-01   3.549320784e+00   3.551431260e+00   4.5e-03  386.17
-5   1.9e-03  1.9e-03  1.4e-04  5.26e-01   4.932411823e+00   4.934135806e+00   1.9e-03  468.42
-6   1.3e-03  1.3e-03  9.9e-05  2.34e-01   5.479627873e+00   5.482229486e+00   1.3e-03  550.41
-7   2.5e-04  2.5e-04  1.4e-05  4.13e-01   8.272097210e+00   8.274068249e+00   2.5e-04  634.62
-8   4.0e-05  4.0e-05  2.0e-06  2.72e-01   1.149571766e+01   1.149789632e+01   4.0e-05  718.83
-9   1.9e-05  1.9e-05  1.0e-06  -1.37e-02  1.311758469e+01   1.312035624e+01   1.9e-05  800.75
-10  3.2e-06  3.2e-06  1.6e-07  1.30e-01   1.805423598e+01   1.805680905e+01   3.2e-06  885.33
-11  1.1e-06  1.1e-06  4.9e-08  1.21e-01   2.152732001e+01   2.152934025e+01   1.1e-06  967.53
-12  4.9e-07  4.9e-07  1.9e-08  1.97e-01   2.358915027e+01   2.359065245e+01   4.9e-07  1049.48
-13  8.5e-08  8.5e-08  2.1e-09  4.21e-01   2.634777118e+01   2.634836112e+01   8.5e-08  1133.48
-14  1.9e-08  7.4e-09  6.1e-11  7.91e-01   2.729206841e+01   2.729213541e+01   7.5e-09  1459.53
-Optimizer terminated. Time: 1459.62
+0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  64.19
+1   1.0e-01  1.0e-01  2.9e-02  9.25e-01   1.063433907e+00   1.043349714e+00   1.0e-01  143.99
+2   1.5e-02  1.5e-02  1.9e-03  1.06e+00   2.312846715e+00   2.313843446e+00   1.5e-02  250.31
+3   2.8e-03  2.8e-03  2.6e-04  6.37e-01   4.530931152e+00   4.534362886e+00   2.8e-03  356.75
+4   5.4e-04  5.4e-04  3.9e-05  4.21e-01   7.612133300e+00   7.615641721e+00   5.4e-04  460.34
+5   1.2e-04  1.2e-04  7.4e-06  2.44e-01   1.137690100e+01   1.138028840e+01   1.2e-04  557.61
+6   2.1e-05  2.1e-05  1.2e-06  1.12e-01   1.610092832e+01   1.610423572e+01   2.1e-05  650.77
+7   8.0e-06  8.0e-06  4.3e-07  -5.73e-03  1.923174572e+01   1.923451344e+01   8.0e-06  741.45
+8   1.5e-06  1.5e-06  6.6e-08  1.01e-01   2.367024033e+01   2.367202787e+01   1.5e-06  834.33
+9   2.6e-07  2.6e-07  6.5e-09  4.17e-01   2.641423907e+01   2.641485658e+01   2.6e-07  926.80
+10  4.8e-08  4.2e-08  4.8e-10  8.21e-01   2.720035500e+01   2.720048284e+01   4.3e-08  1281.25
+Optimizer terminated. Time: 1281.34
 
 
 Interior-point solution summary
   Problem status  : PRIMAL_AND_DUAL_FEASIBLE
   Solution status : OPTIMAL
-  Primal.  obj: 2.7292068411e+01    nrm: 3e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 3e-06
-  Dual.    obj: 2.7292135413e+01    nrm: 6e+03    Viol.  var: 8e-07    barvar: 8e-07    acc: 3e-07
+  Primal.  obj: 2.7200355003e+01    nrm: 3e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 9e-06
+  Dual.    obj: 2.7200482843e+01    nrm: 3e+03    Viol.  var: 2e-06    barvar: 2e-06    acc: 0e+00
 
 ============================================================
 [P0] Prior-only robust: 1024 vertices, all s_i=0
@@ -132,25 +132,31 @@ Interior-point solution summary
 [IterExchange] Init: K=20, m_incon=0, s>0 in active=0, stratified=yes
 
 [Round 1/4] Active: 20, s range: [0.000e+00, 0.000e+00], s>0: 0
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  SDP solved: gamma=5.2044, beta=0.0000
-  Verification: max_violation=0.000003 (vertex 650), n_violated=0/1024, consistent_violated=0
+[MOSEK] Using configured license: <configured MOSEK license path>
+  SDP solved: gamma=5.2101, beta=0.0000
+  Verification: max_violation=0.000169 (vertex 339), n_violated=128/1024, consistent_violated=128
+  Swap: remove vertex 271 (viol=0.000004, s=0.000e+00, tier=0) -> add vertex 339 (viol=0.000169, s=0.000e+00, tier=0)
+
+[Round 2/4] Active: 20, s range: [0.000e+00, 0.000e+00], s>0: 0
+[MOSEK] Using configured license: <configured MOSEK license path>
+  SDP solved: gamma=5.2088, beta=0.0000
+  Verification: max_violation=0.000011 (vertex 241), n_violated=0/1024, consistent_violated=0
   *** Converged: all vertices satisfy LMI (tol=1.0e-04) ***
 
-[IterExchange] Final: 20 vertices, gamma=5.2044, max_viol=0.000003, n_violated=0
-  [F1a] Adaptive threshold: tau=6.5972e-12 (5th percentile, no s<=0 vertices)
+[IterExchange] Final: 20 vertices, gamma=5.2088, max_viol=0.000011, n_violated=0
+  [F1a] Adaptive threshold: tau=3.7943e+02 (5th percentile, no s<=0 vertices)
 
 ============================================================
-[F1a] Hard fusion strict: 52/1024 consistent (s<=6.5972e-12), using 20
+[F1a] Thresholded hard selection with fallback: 52/1024 selected (s<=3.7943e+02), using 20
 ============================================================
   Using 20 vertices for SDP (budget K=20)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
+[MOSEK] Using configured license: <configured MOSEK license path>
 Problem
   Name                   : vertex_fusion
   Objective sense        : minimize
   Type                   : CONIC (conic optimization problem)
   Constraints            : 0
-  Affine conic cons.     : 43 (40759 rows)
+  Affine conic cons.     : 42 (40606 rows)
   Disjunctive cons.      : 0
   Cones                  : 0
   Scalar variables       : 68
@@ -174,51 +180,49 @@ GP based matrix reordering started.
 GP based matrix reordering terminated.
 Optimizer  - threads                : 1
 Optimizer  - solved problem         : the primal
-Optimizer  - Constraints            : 40759
+Optimizer  - Constraints            : 40606
 Optimizer  - Cones                  : 1
 Optimizer  - Scalar variables       : 67                conic                  : 65
-Optimizer  - Semi-definite variables: 44                scalarized             : 40895
-Factor     - setup time             : 64.98
-Factor     - dense det. time        : 26.72             GP order time          : 0.01
-Factor     - nonzeros before factor : 2.60e+08          after factor           : 2.97e+08
-Factor     - dense dim.             : 0                 flops                  : 4.21e+12
-Factor     - GP saved nzs           : 7.74e+06          GP saved flops         : 2.93e+11
+Optimizer  - Semi-definite variables: 43                scalarized             : 40742
+Factor     - setup time             : 79.53
+Factor     - dense det. time        : 34.47             GP order time          : 0.02
+Factor     - nonzeros before factor : 2.57e+08          after factor           : 2.94e+08
+Factor     - dense dim.             : 0                 flops                  : 4.14e+12
+Factor     - GP saved nzs           : 7.70e+06          GP saved flops         : 2.90e+11
 ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME
-0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  65.03
-1   4.9e-01  4.9e-01  3.4e-01  9.27e-01   5.975641777e-01   5.869594660e-01   4.9e-01  140.06
-2   7.9e-02  7.9e-02  1.8e-02  1.08e+00   1.073321002e+00   1.054275108e+00   7.9e-02  224.19
-3   1.8e-02  1.8e-02  2.5e-03  1.07e+00   1.971912933e+00   1.972073750e+00   1.8e-02  309.86
-4   4.3e-03  4.3e-03  3.8e-04  7.01e-01   3.615653298e+00   3.617776903e+00   4.3e-03  395.03
-5   1.1e-03  1.1e-03  6.7e-05  5.14e-01   5.806727298e+00   5.808545105e+00   1.1e-03  479.64
-6   2.0e-04  2.0e-04  1.0e-05  1.85e-01   8.594730137e+00   8.596710746e+00   2.0e-04  564.83
-7   8.1e-05  8.1e-05  4.0e-06  2.42e-02   1.028652792e+01   1.028841205e+01   8.1e-05  649.00
-8   6.2e-05  6.2e-05  3.2e-06  -4.68e-02  1.074848930e+01   1.075064438e+01   6.2e-05  732.38
-9   9.2e-06  9.2e-06  3.9e-07  6.37e-02   1.471686096e+01   1.471846470e+01   9.2e-06  817.89
-10  1.6e-06  1.6e-06  5.0e-08  3.17e-01   1.757862279e+01   1.757951394e+01   1.6e-06  903.26
-11  2.6e-07  2.6e-07  4.5e-09  5.74e-01   1.909422985e+01   1.909451559e+01   2.6e-07  988.89
-12  2.4e-07  2.4e-07  4.1e-09  4.02e-01   1.912290551e+01   1.912318637e+01   2.4e-07  1072.14
-13  1.0e-07  1.0e-07  1.2e-09  8.44e-01   1.939947331e+01   1.939959867e+01   1.0e-07  1155.19
-14  5.1e-08  5.1e-08  4.2e-10  9.33e-01   1.953360143e+01   1.953366747e+01   5.1e-08  1238.25
-Optimizer terminated. Time: 1238.36
+0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  79.58
+1   1.0e-01  1.0e-01  2.8e-02  9.25e-01   1.053356727e+00   1.032963323e+00   1.0e-01  171.80
+2   1.4e-02  1.4e-02  1.8e-03  1.05e+00   2.307533326e+00   2.308737620e+00   1.4e-02  270.95
+3   2.4e-03  2.4e-03  1.9e-04  6.60e-01   4.365701092e+00   4.368255542e+00   2.4e-03  368.78
+4   4.8e-04  4.8e-04  2.8e-05  5.07e-01   6.621865104e+00   6.624020681e+00   4.8e-04  465.47
+5   1.0e-04  1.0e-04  5.1e-06  2.71e-01   9.205879728e+00   9.207815589e+00   1.0e-04  562.41
+6   5.4e-05  5.4e-05  2.5e-06  4.77e-02   1.050807912e+01   1.050977397e+01   5.4e-05  657.45
+7   3.8e-05  3.8e-05  2.0e-06  -2.18e-01  1.103581382e+01   1.103817083e+01   3.8e-05  752.86
+8   5.2e-06  5.2e-06  2.0e-07  5.19e-02   1.527608477e+01   1.527746591e+01   5.2e-06  849.97
+9   8.7e-07  8.7e-07  2.2e-08  3.61e-01   1.806981391e+01   1.807044507e+01   8.7e-07  947.06
+10  7.2e-07  7.2e-07  1.8e-08  5.21e-01   1.827542747e+01   1.827601194e+01   7.2e-07  1041.38
+11  2.4e-07  2.4e-07  4.1e-09  6.29e-01   1.908687473e+01   1.908715047e+01   2.4e-07  1135.92
+12  4.5e-08  4.0e-08  2.4e-10  8.84e-01   1.955097557e+01   1.955100866e+01   3.8e-08  1231.88
+Optimizer terminated. Time: 1231.97
 
 
 Interior-point solution summary
   Problem status  : PRIMAL_AND_DUAL_FEASIBLE
   Solution status : OPTIMAL
-  Primal.  obj: 1.9533601431e+01    nrm: 2e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 2e-06
-  Dual.    obj: 1.9533667469e+01    nrm: 4e+03    Viol.  var: 2e-06    barvar: 2e-06    acc: 0e+00
+  Primal.  obj: 1.9550975568e+01    nrm: 2e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 2e-06
+  Dual.    obj: 1.9551008664e+01    nrm: 5e+03    Viol.  var: 2e-06    barvar: 2e-06    acc: 1e-07
 
 ============================================================
-[F1b] Hard fusion budget: top-20 by raw consistency score
-  Score range of selected: [6.5459e-12, 6.5849e-12]
+[F1b] Top-budget hard selection: top-20 by raw consistency score
+  Score range of selected: [3.7939e+02, 3.7939e+02]
 ============================================================
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
+[MOSEK] Using configured license: <configured MOSEK license path>
 Problem
   Name                   : vertex_fusion
   Objective sense        : minimize
   Type                   : CONIC (conic optimization problem)
   Constraints            : 0
-  Affine conic cons.     : 43 (40759 rows)
+  Affine conic cons.     : 42 (40606 rows)
   Disjunctive cons.      : 0
   Cones                  : 0
   Scalar variables       : 68
@@ -242,83 +246,82 @@ GP based matrix reordering started.
 GP based matrix reordering terminated.
 Optimizer  - threads                : 1
 Optimizer  - solved problem         : the primal
-Optimizer  - Constraints            : 40759
+Optimizer  - Constraints            : 40606
 Optimizer  - Cones                  : 1
 Optimizer  - Scalar variables       : 67                conic                  : 65
-Optimizer  - Semi-definite variables: 44                scalarized             : 40895
-Factor     - setup time             : 65.52
-Factor     - dense det. time        : 27.34             GP order time          : 0.01
-Factor     - nonzeros before factor : 2.60e+08          after factor           : 2.97e+08
-Factor     - dense dim.             : 0                 flops                  : 4.21e+12
-Factor     - GP saved nzs           : 7.74e+06          GP saved flops         : 2.93e+11
+Optimizer  - Semi-definite variables: 43                scalarized             : 40742
+Factor     - setup time             : 73.91
+Factor     - dense det. time        : 30.48             GP order time          : 0.02
+Factor     - nonzeros before factor : 2.57e+08          after factor           : 2.94e+08
+Factor     - dense dim.             : 0                 flops                  : 4.14e+12
+Factor     - GP saved nzs           : 7.70e+06          GP saved flops         : 2.90e+11
 ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME
-0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  65.55
-1   4.9e-01  4.9e-01  3.4e-01  9.27e-01   5.975181272e-01   5.868754742e-01   4.9e-01  140.03
-2   7.9e-02  7.9e-02  1.8e-02  1.08e+00   1.072842486e+00   1.053788802e+00   7.9e-02  223.72
-3   1.8e-02  1.8e-02  2.5e-03  1.07e+00   1.958215482e+00   1.958265526e+00   1.8e-02  309.34
-4   4.5e-03  4.5e-03  4.1e-04  7.08e-01   3.539920902e+00   3.542036244e+00   4.5e-03  394.64
-5   2.0e-03  2.0e-03  1.4e-04  5.37e-01   4.874594905e+00   4.876264767e+00   2.0e-03  477.62
-6   1.4e-03  1.4e-03  1.1e-04  2.46e-01   5.391114213e+00   5.393651349e+00   1.4e-03  561.17
-7   2.8e-04  2.8e-04  1.5e-05  4.31e-01   8.092107002e+00   8.093939450e+00   2.8e-04  648.23
-8   4.6e-05  4.6e-05  2.2e-06  3.14e-01   1.123235403e+01   1.123430117e+01   4.6e-05  732.33
-9   1.7e-05  1.7e-05  7.0e-07  8.69e-02   1.346387379e+01   1.346546979e+01   1.7e-05  815.44
-10  9.2e-06  9.2e-06  4.3e-07  -5.21e-02  1.448268080e+01   1.448471084e+01   9.2e-06  897.56
-11  2.8e-06  2.8e-06  9.4e-08  4.09e-01   1.687002987e+01   1.687106063e+01   2.8e-06  979.53
-12  4.7e-07  4.7e-07  1.0e-08  4.47e-01   1.876399357e+01   1.876443652e+01   4.7e-07  1064.20
-13  2.8e-07  2.8e-07  5.1e-09  5.96e-01   1.906217950e+01   1.906249752e+01   2.8e-07  1147.86
-14  2.2e-08  2.2e-08  7.4e-11  8.87e-01   1.959387437e+01   1.959388508e+01   2.2e-08  1233.28
-Optimizer terminated. Time: 1233.38
+0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  73.95
+1   1.0e-01  1.0e-01  2.8e-02  9.25e-01   1.050556400e+00   1.030148265e+00   1.0e-01  161.38
+2   1.4e-02  1.4e-02  1.8e-03  1.05e+00   2.314016337e+00   2.315362921e+00   1.4e-02  256.69
+3   2.4e-03  2.4e-03  1.9e-04  6.56e-01   4.391302344e+00   4.393903623e+00   2.4e-03  350.20
+4   4.6e-04  4.6e-04  2.7e-05  5.06e-01   6.657683594e+00   6.659856381e+00   4.6e-04  442.23
+5   1.3e-04  1.3e-04  6.6e-06  2.54e-01   8.815507899e+00   8.817404264e+00   1.3e-04  533.31
+6   4.3e-05  4.3e-05  2.0e-06  1.19e-01   1.098885851e+01   1.099074990e+01   4.3e-05  623.50
+7   2.0e-05  2.0e-05  8.2e-07  1.81e-01   1.270553969e+01   1.270708957e+01   2.0e-05  712.91
+8   1.3e-05  1.3e-05  6.4e-07  -7.09e-02  1.324062041e+01   1.324266272e+01   1.3e-05  803.45
+9   2.2e-06  2.2e-06  6.8e-08  2.75e-01   1.685997575e+01   1.686089307e+01   2.2e-06  896.33
+10  7.0e-07  7.0e-07  1.6e-08  3.56e-01   1.837338000e+01   1.837387780e+01   7.0e-07  987.61
+11  9.1e-08  9.1e-08  1.0e-09  6.04e-01   1.939787414e+01   1.939799251e+01   9.1e-08  1081.67
+12  5.6e-08  5.6e-08  5.1e-10  9.11e-01   1.949739618e+01   1.949747647e+01   5.7e-08  1177.16
+Optimizer terminated. Time: 1177.27
 
 
 Interior-point solution summary
   Problem status  : PRIMAL_AND_DUAL_FEASIBLE
   Solution status : OPTIMAL
-  Primal.  obj: 1.9593874365e+01    nrm: 2e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 1e-06
-  Dual.    obj: 1.9593885079e+01    nrm: 6e+03    Viol.  var: 9e-07    barvar: 9e-07    acc: 2e-07
+  Primal.  obj: 1.9497396183e+01    nrm: 2e+01    Viol.  var: 0e+00    barvar: 0e+00    acc: 3e-06
+  Dual.    obj: 1.9497476469e+01    nrm: 4e+03    Viol.  var: 2e-06    barvar: 2e-06    acc: 0e+00
 
 ============================================================
 [S0] Data-only: LS identification from batch + LQR
 ============================================================
-  LS model: rho(A_hat)=1.1306, dim A=(16, 16), B=(16, 4)
-  S0 LQR ok: rho(A+BK)=0.8510
+  LS model: rho(A_hat)=1.0864, dim A=(16, 16), B=(16, 4)
+  S0 LQR ok: rho(A+BK)=0.8127
 
 ================================================================================
-TWO-STAGE SOLVER / RELAXED-LMI VERIFICATION PROTOCOL
+TWO-STAGE SOLVER / SURROGATE-LMI VERIFICATION PROTOCOL
 ================================================================================
   Stage-1: T1=1500s, max_iters=50, rel_gap=1e-04, pfeas=1e-06, dfeas=1e-06
   Stage-2 (polish): T2=600s, max_iters=200, rel_gap=1e-07, pfeas=1e-08, dfeas=1e-08
-  Verification: full-vertex score-RELAXED LMI check, tol=1e-04
-  Polish trigger: max_viol <= 2e-04 (2*tol)
-  Classification (relaxed-LMI status, NOT hard certification on U_prior):
-    relaxed_verified : max_viol <= tol AND n_violated=0
-    near_relaxed     : tol < max_viol <= 2*tol (after polish if triggered)
-    failed           : max_viol > 2*tol OR solver infeasible/timeout
+  Verification: full-vertex score-weighted surrogate LMI check
+  Polish trigger: max_viol <= eps_near=2e-04
+  Classification (numerical surrogate status, not hard certification):
+    surrogate_pass : max_viol <= eps_pass=1e-04
+    near_surrogate : eps_pass < max_viol <= eps_near=2e-04
+    failed         : max_viol > eps_near or solver infeasible/timeout
   NOTE: hard certification holds only on the score-zero subpolytope U_cert
-        (see Theorem 3); 'relaxed_verified' refers to the score-relaxed LMI only.
+        A surrogate pass is not a hard certificate over U_prior.
 ================================================================================
 
-  [Proposed] relaxed_verified: max_viol=1.14e-06, n_violated=0, gamma=4.4142
-  [P1(NoRelax)] relaxed_verified: max_viol=2.76e-06, n_violated=0, gamma=5.2152
-  [P0(PriorOnly)] relaxed_verified: max_viol=2.80e-06, n_violated=0, gamma=5.2044
-  [F1a(HardStrict)] failed: max_viol=9.64e-02, n_violated=768, gamma=4.4074
-  [F1b(HardBudget)] failed: max_viol=7.00e-02, n_violated=768, gamma=4.4156
+  [Proposed] surrogate_pass: max_viol=3.71e-05, n_violated=0, gamma=4.3573
+  [P1(NoRelax)] surrogate_pass: max_viol=8.84e-06, n_violated=0, gamma=5.2064
+  [P0(PriorOnly)] surrogate_pass: max_viol=1.05e-05, n_violated=0, gamma=5.2088
+  [F1a(HardStrict)] failed: max_viol=7.29e-02, n_violated=768, gamma=4.4104
+  [F1b(HardBudget)] failed: max_viol=1.01e-01, n_violated=896, gamma=4.4030
 
 ====================================================================================================
-FINAL RELAXED-LMI VERIFICATION REPORT (Two-Stage Protocol)
+FINAL SURROGATE-LMI VERIFICATION REPORT (Two-Stage Protocol)
 ====================================================================================================
 Strategy               | Class            |   max_viol | n_violated |      gamma | polished
 -------------------------------------------------------------------------------------------
 NominalLQR             | N/A (LQR)        |        N/A |          0 |        N/A |       no
 S0(DataOnly)           | N/A (LQR)        |        N/A |          0 |        N/A |       no
-P0(PriorOnly)          | relaxed_verified |   2.80e-06 |          0 |     5.2044 |       no
-P1(NoRelax)            | relaxed_verified |   2.76e-06 |          0 |     5.2152 |       no
-F1a(HardStrict)        | failed           |   9.64e-02 |        768 |     4.4074 |       no
-F1b(HardBudget)        | failed           |   7.00e-02 |        768 |     4.4156 |       no
-Proposed               | relaxed_verified |   1.14e-06 |          0 |     4.4142 |       no
+P0(PriorOnly)          | surrogate_pass   |   1.05e-05 |          0 |     5.2088 |       no
+P1(NoRelax)            | surrogate_pass   |   8.84e-06 |          0 |     5.2064 |       no
+F1a(HardStrict)        | failed           |   7.29e-02 |        768 |     4.4104 |       no
+F1b(HardBudget)        | failed           |   1.01e-01 |        896 |     4.4030 |       no
+Proposed               | surrogate_pass   |   3.71e-05 |          0 |     4.3573 |       no
 -------------------------------------------------------------------------------------------
-  relaxed_verified: 3/7 (42.9%)  |  near_relaxed: 0/7 (0.0%)  |  failed: 4/7 (57.1%)
+  surrogate_pass: 3/7 (42.9%)  |  near_surrogate: 0/7 (0.0%)  |  failed: 4/7 (57.1%)
 ====================================================================================================
 
+[Cache] Saved synthesis diagnostics to <repository>/results_revised\caches\vertex_selection_synthesis.npz
 
 ================================================================================
 Phase 3: Vertex Selection Strategy Comparison
@@ -328,77 +331,466 @@ Phase 3: Vertex Selection Strategy Comparison
 [VertexSelectionExperiment] K_values=(8, 12, 16, 20), n_seeds=5, N_mc=500
   Protocol: tol=1.0e-04, polish_trigger=2.0e-04, T1=1500s, T2=600s
 ================================================================================
-[Checkpoint] Resumed from monclo_pointsResult\vsel_checkpoint.pkl (104 records loaded)
-  [K=8] SFPS+ICE: skipping (5 seeds already done from checkpoint)
-  [K=8] SFPS-init: skipping (5 seeds already done from checkpoint)
-  [K=8] Random+ICE: skipping (5 seeds already done from checkpoint)
-  [K=8] TopK+ICE: skipping (5 seeds already done from checkpoint)
-  [K=8] FPS-Param+ICE: skipping (5 seeds already done from checkpoint)
-  [K=8] FPS-Delta+ICE: skipping (5 seeds already done from checkpoint)
-  [K=12] SFPS+ICE: skipping (5 seeds already done from checkpoint)
-  [K=12] SFPS-init: skipping (5 seeds already done from checkpoint)
-  [K=12] Random+ICE: skipping (5 seeds already done from checkpoint)
-  [K=12] TopK+ICE: skipping (5 seeds already done from checkpoint)
-  [K=12] FPS-Param+ICE: skipping (5 seeds already done from checkpoint)
-  [K=12] FPS-Delta+ICE: skipping (5 seeds already done from checkpoint)
-  [K=16] SFPS+ICE: skipping (5 seeds already done from checkpoint)
-  [K=16] SFPS-init: skipping (5 seeds already done from checkpoint)
-  [K=16] Random+ICE: skipping (5 seeds already done from checkpoint)
-  [K=16] TopK+ICE: skipping (5 seeds already done from checkpoint)
-  [K=16] FPS-Param+ICE: skipping (5 seeds already done from checkpoint)
-  [K=16] FPS-Delta+ICE: skipping (5 seeds already done from checkpoint)
-  [K=20] SFPS+ICE: skipping (5 seeds already done from checkpoint)
-  [K=20] SFPS-init: skipping (5 seeds already done from checkpoint)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] Random+ICE seed=4: relaxed_verified, gamma=4.4047, viol=6.25e-05, mc_success=95.0%, rmse95=0.5730
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] TopK+ICE seed=0: FAILED (gamma=4.41, viol_s1=8.88e-02, viol_final=8.88e-02)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] TopK+ICE seed=1: FAILED (gamma=4.41, viol_s1=8.88e-02, viol_final=8.88e-02)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] TopK+ICE seed=2: FAILED (gamma=4.41, viol_s1=8.88e-02, viol_final=8.88e-02)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] TopK+ICE seed=3: FAILED (gamma=4.41, viol_s1=8.88e-02, viol_final=8.88e-02)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] TopK+ICE seed=4: FAILED (gamma=4.41, viol_s1=8.88e-02, viol_final=8.88e-02)
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Param+ICE seed=0: relaxed_verified, gamma=4.4162, viol=8.53e-07, mc_success=95.6%, rmse95=0.5733
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Param+ICE seed=1: relaxed_verified, gamma=4.4159, viol=9.36e-07, mc_success=95.4%, rmse95=0.5727
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Param+ICE seed=2: relaxed_verified, gamma=4.4055, viol=6.24e-05, mc_success=92.4%, rmse95=0.5682
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Param+ICE seed=3: relaxed_verified, gamma=4.4063, viol=6.23e-05, mc_success=96.0%, rmse95=0.5690
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Param+ICE seed=4: relaxed_verified, gamma=4.4063, viol=6.24e-05, mc_success=96.6%, rmse95=0.5699
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Delta+ICE seed=0: relaxed_verified, gamma=4.4154, viol=9.97e-07, mc_success=98.8%, rmse95=0.5782
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Delta+ICE seed=1: relaxed_verified, gamma=4.4162, viol=8.33e-07, mc_success=96.2%, rmse95=0.5776
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Delta+ICE seed=2: relaxed_verified, gamma=4.4165, viol=8.25e-07, mc_success=97.0%, rmse95=0.5808
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Delta+ICE seed=3: relaxed_verified, gamma=4.4199, viol=2.88e-07, mc_success=99.4%, rmse95=0.5788
-[MOSEK] Using license file: <MOSEK_LICENSE_FILE>
-  [K=20] FPS-Delta+ICE seed=4: relaxed_verified, gamma=4.4151, viol=1.83e-06, mc_success=99.2%, rmse95=0.5801
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS+ICE seed=0: surrogate_pass, gamma=4.3887, viol=2.88e-05, mc_success=83.2%, rmse95=0.3562
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS+ICE seed=1: surrogate_pass, gamma=4.3960, viol=7.20e-06, mc_success=84.0%, rmse95=0.3559
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS+ICE seed=2: surrogate_pass, gamma=4.3980, viol=7.30e-06, mc_success=86.4%, rmse95=0.3592
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS+ICE seed=3: surrogate_pass, gamma=4.3718, viol=3.52e-05, mc_success=90.0%, rmse95=0.3554
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS+ICE seed=4: surrogate_pass, gamma=4.3900, viol=2.82e-05, mc_success=85.0%, rmse95=0.3538
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS-init seed=0: failed (gamma=3.81, viol_s1=4.38e-02, viol_final=4.38e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS-init seed=1: failed (gamma=3.82, viol_s1=4.81e-02, viol_final=4.81e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS-init seed=2: failed (gamma=3.82, viol_s1=4.21e-02, viol_final=4.21e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS-init seed=3: failed (gamma=3.81, viol_s1=4.26e-02, viol_final=4.26e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] SFPS-init seed=4: failed (gamma=3.82, viol_s1=4.75e-02, viol_final=4.75e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] Random+ICE seed=0: surrogate_pass, gamma=4.4096, viol=6.35e-06, mc_success=88.2%, rmse95=0.3574
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] Random+ICE seed=1: surrogate_pass, gamma=4.4037, viol=2.65e-05, mc_success=89.2%, rmse95=0.3561
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] Random+ICE seed=2: failed (gamma=3.66, viol_s1=6.16e-03, viol_final=6.16e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] Random+ICE seed=3: failed (gamma=4.13, viol_s1=6.07e-04, viol_final=6.07e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] Random+ICE seed=4: failed (gamma=4.38, viol_s1=3.92e-04, viol_final=3.92e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] TopK+ICE seed=0: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] TopK+ICE seed=1: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] TopK+ICE seed=2: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] TopK+ICE seed=3: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] TopK+ICE seed=4: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Param+ICE seed=0: failed (gamma=4.37, viol_s1=4.14e-04, viol_final=4.14e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Param+ICE seed=1: failed (gamma=4.36, viol_s1=4.10e-04, viol_final=4.10e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Param+ICE seed=2: surrogate_pass, gamma=4.3609, viol=3.69e-05, mc_success=87.4%, rmse95=0.3569
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Param+ICE seed=3: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Param+ICE seed=4: failed (gamma=4.14, viol_s1=6.05e-04, viol_final=6.05e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Delta+ICE seed=0: failed (gamma=4.37, viol_s1=3.99e-04, viol_final=3.99e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Delta+ICE seed=1: surrogate_pass, gamma=4.3632, viol=3.65e-05, mc_success=90.8%, rmse95=0.3621
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Delta+ICE seed=2: surrogate_pass, gamma=4.4023, viol=6.82e-05, mc_success=88.6%, rmse95=0.3601
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Delta+ICE seed=3: failed (gamma=4.15, viol_s1=6.08e-04, viol_final=6.08e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=8] FPS-Delta+ICE seed=4: surrogate_pass, gamma=4.3582, viol=3.71e-05, mc_success=84.2%, rmse95=0.3563
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS+ICE seed=0: surrogate_pass, gamma=4.3608, viol=3.67e-05, mc_success=82.8%, rmse95=0.3559
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS+ICE seed=1: surrogate_pass, gamma=4.4130, viol=5.83e-06, mc_success=92.2%, rmse95=0.3600
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS+ICE seed=2: surrogate_pass, gamma=4.3591, viol=3.69e-05, mc_success=83.6%, rmse95=0.3570
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS+ICE seed=3: surrogate_pass, gamma=4.3904, viol=2.80e-05, mc_success=90.6%, rmse95=0.3610
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS+ICE seed=4: surrogate_pass, gamma=4.3713, viol=3.50e-05, mc_success=91.4%, rmse95=0.3610
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS-init seed=0: failed (gamma=4.38, viol_s1=1.33e-02, viol_final=1.33e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS-init seed=1: failed (gamma=4.36, viol_s1=3.45e-02, viol_final=3.45e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS-init seed=2: failed (gamma=4.36, viol_s1=3.05e-02, viol_final=3.05e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS-init seed=3: failed (gamma=4.36, viol_s1=3.27e-02, viol_final=3.27e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] SFPS-init seed=4: failed (gamma=4.37, viol_s1=3.96e-02, viol_final=3.96e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] Random+ICE seed=0: failed (gamma=3.59, viol_s1=6.84e-03, viol_final=6.84e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] Random+ICE seed=1: surrogate_pass, gamma=4.3917, viol=2.86e-05, mc_success=85.8%, rmse95=0.3577
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] Random+ICE seed=2: failed (gamma=4.38, viol_s1=1.03e-04, viol_final=6.75e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] Random+ICE seed=3: failed (gamma=4.38, viol_s1=2.63e-04, viol_final=2.63e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] Random+ICE seed=4: surrogate_pass, gamma=4.3573, viol=3.72e-05, mc_success=88.4%, rmse95=0.3598
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] TopK+ICE seed=0: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] TopK+ICE seed=1: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] TopK+ICE seed=2: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] TopK+ICE seed=3: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] TopK+ICE seed=4: failed (gamma=3.85, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Param+ICE seed=0: failed (gamma=4.37, viol_s1=5.33e-04, viol_final=5.33e-04)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Param+ICE seed=1: failed (gamma=3.62, viol_s1=4.01e-03, viol_final=4.01e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Param+ICE seed=2: near_surrogate [polished], gamma=4.3771, viol=1.03e-04, mc_success=100.0%, rmse95=0.3753
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Param+ICE seed=3: surrogate_pass, gamma=4.3603, viol=3.69e-05, mc_success=86.4%, rmse95=0.3549
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Param+ICE seed=4: surrogate_pass, gamma=4.4099, viol=3.60e-05, mc_success=96.0%, rmse95=0.3635
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Delta+ICE seed=0: surrogate_pass, gamma=4.3920, viol=2.81e-05, mc_success=87.6%, rmse95=0.3565
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Delta+ICE seed=1: surrogate_pass, gamma=4.3971, viol=2.71e-05, mc_success=88.8%, rmse95=0.3590
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Delta+ICE seed=2: near_surrogate [polished], gamma=4.3768, viol=1.03e-04, mc_success=97.2%, rmse95=0.3674
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Delta+ICE seed=3: surrogate_pass, gamma=4.3957, viol=7.51e-06, mc_success=82.2%, rmse95=0.3528
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=12] FPS-Delta+ICE seed=4: surrogate_pass, gamma=4.3903, viol=2.83e-05, mc_success=86.2%, rmse95=0.3557
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS+ICE seed=0: surrogate_pass, gamma=4.3662, viol=3.62e-05, mc_success=85.2%, rmse95=0.3569
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS+ICE seed=1: surrogate_pass, gamma=4.3598, viol=3.68e-05, mc_success=87.2%, rmse95=0.3581
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS+ICE seed=2: surrogate_pass, gamma=4.3673, viol=3.59e-05, mc_success=92.2%, rmse95=0.3604
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS+ICE seed=3: surrogate_pass, gamma=4.3666, viol=3.58e-05, mc_success=91.4%, rmse95=0.3624
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS+ICE seed=4: surrogate_pass, gamma=4.3623, viol=3.67e-05, mc_success=89.2%, rmse95=0.3588
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS-init seed=0: surrogate_pass, gamma=4.3662, viol=3.62e-05, mc_success=85.2%, rmse95=0.3569
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS-init seed=1: surrogate_pass, gamma=4.3598, viol=3.68e-05, mc_success=87.2%, rmse95=0.3581
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS-init seed=2: surrogate_pass, gamma=4.3673, viol=3.59e-05, mc_success=92.2%, rmse95=0.3604
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS-init seed=3: surrogate_pass, gamma=4.3666, viol=3.58e-05, mc_success=91.4%, rmse95=0.3624
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] SFPS-init seed=4: surrogate_pass, gamma=4.3623, viol=3.67e-05, mc_success=89.2%, rmse95=0.3588
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] Random+ICE seed=0: surrogate_pass, gamma=4.3749, viol=7.65e-05, mc_success=91.8%, rmse95=0.3631
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] Random+ICE seed=1: surrogate_pass, gamma=4.3978, viol=6.87e-05, mc_success=91.4%, rmse95=0.3574
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] Random+ICE seed=2: surrogate_pass, gamma=4.4094, viol=5.53e-06, mc_success=89.2%, rmse95=0.3583
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] Random+ICE seed=3: near_surrogate [polished], gamma=4.3771, viol=1.03e-04, mc_success=100.0%, rmse95=0.3753
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] Random+ICE seed=4: surrogate_pass, gamma=4.3935, viol=2.80e-05, mc_success=89.6%, rmse95=0.3557
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] TopK+ICE seed=0: failed (gamma=3.85, viol_s1=2.24e-02, viol_final=2.24e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] TopK+ICE seed=1: failed (gamma=3.85, viol_s1=2.24e-02, viol_final=2.24e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] TopK+ICE seed=2: failed (gamma=3.85, viol_s1=2.24e-02, viol_final=2.24e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] TopK+ICE seed=3: failed (gamma=3.85, viol_s1=2.24e-02, viol_final=2.24e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] TopK+ICE seed=4: failed (gamma=3.85, viol_s1=2.24e-02, viol_final=2.24e-02)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Param+ICE seed=0: surrogate_pass, gamma=4.4007, viol=2.71e-05, mc_success=96.0%, rmse95=0.3626
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Param+ICE seed=1: surrogate_pass, gamma=4.3702, viol=3.54e-05, mc_success=93.8%, rmse95=0.3601
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Param+ICE seed=2: surrogate_pass, gamma=4.3641, viol=3.62e-05, mc_success=84.4%, rmse95=0.3561
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Param+ICE seed=3: surrogate_pass, gamma=4.3935, viol=2.78e-05, mc_success=90.0%, rmse95=0.3571
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Param+ICE seed=4: surrogate_pass, gamma=4.3918, viol=2.78e-05, mc_success=88.6%, rmse95=0.3628
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Delta+ICE seed=0: surrogate_pass, gamma=4.3663, viol=3.60e-05, mc_success=89.6%, rmse95=0.3624
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Delta+ICE seed=1: surrogate_pass, gamma=4.3924, viol=6.88e-05, mc_success=88.8%, rmse95=0.3603
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Delta+ICE seed=2: surrogate_pass, gamma=4.4126, viol=5.93e-06, mc_success=92.4%, rmse95=0.3624
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Delta+ICE seed=3: surrogate_pass, gamma=4.3861, viol=6.88e-05, mc_success=82.8%, rmse95=0.3548
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=16] FPS-Delta+ICE seed=4: surrogate_pass, gamma=4.4005, viol=6.87e-05, mc_success=92.6%, rmse95=0.3602
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS+ICE seed=0: surrogate_pass, gamma=4.3607, viol=3.73e-05, mc_success=86.0%, rmse95=0.3619
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS+ICE seed=1: surrogate_pass, gamma=4.3688, viol=3.53e-05, mc_success=88.6%, rmse95=0.3608
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS+ICE seed=2: surrogate_pass, gamma=4.3710, viol=3.48e-05, mc_success=95.6%, rmse95=0.3651
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS+ICE seed=3: surrogate_pass, gamma=4.3726, viol=3.50e-05, mc_success=87.6%, rmse95=0.3595
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS+ICE seed=4: surrogate_pass, gamma=4.3720, viol=3.44e-05, mc_success=93.0%, rmse95=0.3650
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS-init seed=0: surrogate_pass, gamma=4.3607, viol=3.73e-05, mc_success=86.0%, rmse95=0.3619
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS-init seed=1: surrogate_pass, gamma=4.3688, viol=3.53e-05, mc_success=88.6%, rmse95=0.3608
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS-init seed=2: surrogate_pass, gamma=4.3710, viol=3.48e-05, mc_success=95.6%, rmse95=0.3651
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS-init seed=3: surrogate_pass, gamma=4.3726, viol=3.50e-05, mc_success=87.6%, rmse95=0.3595
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] SFPS-init seed=4: surrogate_pass, gamma=4.3720, viol=3.44e-05, mc_success=93.0%, rmse95=0.3650
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] Random+ICE seed=0: surrogate_pass, gamma=4.4004, viol=2.71e-05, mc_success=96.4%, rmse95=0.3675
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] Random+ICE seed=1: surrogate_pass, gamma=4.3966, viol=2.74e-05, mc_success=97.4%, rmse95=0.3602
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] Random+ICE seed=2: surrogate_pass, gamma=4.3890, viol=6.90e-05, mc_success=84.4%, rmse95=0.3549
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] Random+ICE seed=3: surrogate_pass, gamma=4.3917, viol=6.85e-05, mc_success=88.8%, rmse95=0.3633
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] Random+ICE seed=4: surrogate_pass, gamma=4.3964, viol=7.24e-06, mc_success=92.0%, rmse95=0.3614
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] TopK+ICE seed=0: failed (gamma=3.84, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] TopK+ICE seed=1: failed (gamma=3.84, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] TopK+ICE seed=2: failed (gamma=3.84, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] TopK+ICE seed=3: failed (gamma=3.84, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] TopK+ICE seed=4: failed (gamma=3.84, viol_s1=1.92e-03, viol_final=1.92e-03)
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Param+ICE seed=0: surrogate_pass, gamma=4.3910, viol=6.84e-05, mc_success=90.6%, rmse95=0.3608
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Param+ICE seed=1: surrogate_pass, gamma=4.3613, viol=3.58e-05, mc_success=87.2%, rmse95=0.3584
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Param+ICE seed=2: surrogate_pass, gamma=4.3891, viol=2.85e-05, mc_success=91.0%, rmse95=0.3610
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Param+ICE seed=3: surrogate_pass, gamma=4.3884, viol=2.86e-05, mc_success=84.6%, rmse95=0.3582
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Param+ICE seed=4: surrogate_pass, gamma=4.4091, viol=2.39e-06, mc_success=89.4%, rmse95=0.3576
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Delta+ICE seed=0: surrogate_pass, gamma=4.3888, viol=6.87e-05, mc_success=92.0%, rmse95=0.3591
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Delta+ICE seed=1: surrogate_pass, gamma=4.3926, viol=6.85e-05, mc_success=93.6%, rmse95=0.3627
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Delta+ICE seed=2: surrogate_pass, gamma=4.3590, viol=3.72e-05, mc_success=87.0%, rmse95=0.3583
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Delta+ICE seed=3: surrogate_pass, gamma=4.4084, viol=6.26e-06, mc_success=92.2%, rmse95=0.3596
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+[MOSEK] Using configured license: <configured MOSEK license path>
+  [K=20] FPS-Delta+ICE seed=4: surrogate_pass, gamma=4.3681, viol=3.53e-05, mc_success=90.0%, rmse95=0.3577
+[Cache] Saved vertex-selection raw results to <repository>/results_revised\caches\vertex_selection_ablation_raw.npz
+[Table] Saved by-seed vertex-selection results to <repository>/results_revised\tables\vertex_selection_ablation_by_seed.csv
 
 [Plotting] Generating vertex selection comparison plots...
-[Figures] Saved vertex selection comparison to monclo_pointsResult
-python : <PYTHON_SITE_PACKAGES>\matplotlib\axes\_axes.py:1185: RuntimeWarning: All-NaN axis encountered
-+ ... lyContinue; python -u monclo-point-chooose.py *>&1 > _runlog_vsel.txt ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (<PYTHON_SITE_PACKAGES>...xis encountered:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
-
-  miny = np.nanmin(masked_verts[..., 1])
-<PYTHON_SITE_PACKAGES>\matplotlib\axes\_axes.py:1186: RuntimeWarning: All-NaN axis encountered
-  maxy = np.nanmax(masked_verts[..., 1])
-[Figures] Saved gamma vs K plot to monclo_pointsResult
+[Figures] Saved vertex selection comparison to <repository>/results_revised\monclo_pointsResult
+[Figures] Saved gamma vs K plot to <repository>/results_revised\monclo_pointsResult
 
 [Export] Generating vertex selection LaTeX tables...
-[Export] Saved vertex selection LaTeX tables to monclo_pointsResult\u-vertex_selection_tables.tex
+[Export] Saved vertex selection LaTeX tables to <repository>/results_revised\monclo_pointsResult\u-vertex_selection_tables.tex
+[Export] Saved Table 8 summary to <repository>/results_revised\tables\vertex_selection_table8_summary.csv
+[Export] Saved Table 8 row fragment to <repository>/results_revised\tables\vertex_selection_table8_rows.tex
 
 ================================================================================
 All simulations completed successfully!

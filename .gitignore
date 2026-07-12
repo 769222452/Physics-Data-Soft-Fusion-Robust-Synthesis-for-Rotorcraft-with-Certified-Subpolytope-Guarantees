@@ -14,8 +14,11 @@ env/
 *.pkl
 *.npz
 *.mat
+!results/raw/
+!results/raw/*.npz
 
 simulation_results/
+results_revised/
 Stage3_Figures_Paper/
 time-new/
 time-new-ex/
