@@ -209,18 +209,18 @@ def configure_mosek_license(
         lic = found[0]
         os.environ["MOSEKLM_LICENSE_FILE"] = lic
         if verbose:
-            print(f"[MOSEK] Auto-found license file: {lic}")
+            print("[MOSEK] Auto-found a license file.")
         return lic
 
     env_val = os.environ.get("MOSEKLM_LICENSE_FILE", "")
     if env_val and ("@" in env_val or os.path.isfile(env_val)):
         if verbose:
-            print(f"[MOSEK] Using configured license: {env_val}")
+            print("[MOSEK] Using the configured license.")
         return env_val
     raise FileNotFoundError(
         "MOSEK license was not found. Set MOSEKLM_LICENSE_FILE to a license "
         "file path or to a license server such as '27000@server'. "
-        f"Current MOSEKLM_LICENSE_FILE='{env_val}'."
+        f"MOSEKLM_LICENSE_FILE is {'set but invalid' if env_val else 'unset'}."
     )
 
 
