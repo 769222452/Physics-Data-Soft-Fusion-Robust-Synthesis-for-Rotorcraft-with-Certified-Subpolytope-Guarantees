@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the associated manuscript and repository."
-title: "Soft Fusion of Physics Based Priors and Data Evidence for Robust Rotorcraft Synthesis with Certified Subpolytope Guarantees"
+title: "Soft Fusion of Physics-Based Priors and Offline Data for Robust Rotorcraft Synthesis with Certified Subpolytope Guarantees"
 authors:
   - family-names: Shen
     given-names: Mingjie

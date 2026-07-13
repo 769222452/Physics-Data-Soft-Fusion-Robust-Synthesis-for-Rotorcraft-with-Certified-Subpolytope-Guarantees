@@ -1,9 +1,9 @@
-# Soft Fusion of Physics Based Priors and Data Evidence for Robust Rotorcraft Synthesis
+# Soft Fusion of Physics-Based Priors and Offline Data for Robust Rotorcraft Synthesis
 
 This repository contains the simulation code and selected reproducibility
 artifacts for the manuscript:
 
-**Soft Fusion of Physics Based Priors and Data Evidence for Robust Rotorcraft
+**Soft Fusion of Physics-Based Priors and Offline Data for Robust Rotorcraft
 Synthesis with Certified Subpolytope Guarantees**.
 
 The code implements the numerical studies reported in the manuscript,
@@ -15,7 +15,7 @@ and vertex-selection studies for the adopted physics-data prior representation.
 ```text
 src/                         Simulation scripts and shared normalization code
 tests/                       Algebra and implementation regression tests
-results/figures/             Curated figures used for manuscript validation
+results/figures/             Curated figures used in the manuscript
 results/tables/              Curated numerical tables
 results/raw/                 Machine-readable NPZ rerun artifacts
 results/README.md            Artifact map and field notes

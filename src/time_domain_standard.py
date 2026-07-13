@@ -732,7 +732,7 @@ def compute_vertex_score_scalar(
 
     ev = eigvalsh(S)
 
-    if mode == "lambda_max":  # P2.15: the canonical, paper-aligned definition (s_i^raw = lambda_max).
+    if mode == "lambda_max":  # Canonical manuscript definition: s_i^raw = lambda_max.
         return float(ev[-1])
     elif mode == "trace":
         return float(-np.trace(S))
@@ -1624,7 +1624,7 @@ def iterative_constraint_exchange(
             active_idx.add(int(add_idx))
 
     if verbose:
-        n_s_pos = sum(1 for i in active_idx if s_all[i] > 1e-12)
+        n_s_pos = sum(1 for i in active_idx if s_all[i] > 0.0)
         print(f"[IterExchange] Init: K={K_budget}, m_incon={m_incon}, "
               f"s>0 in active={n_s_pos}, stratified={'yes' if bounds else 'no'}")
 
@@ -1641,7 +1641,7 @@ def iterative_constraint_exchange(
 
         if verbose:
             s_vals = [float(all_vertices[i]["s"]) for i in active_list]
-            n_nonzero = sum(1 for sv in s_vals if sv > 1e-12)
+            n_nonzero = sum(1 for sv in s_vals if sv > 0.0)
             print(f"\n[Round {rnd+1}/{max_rounds}] Active: {len(active_list)}, "
                   f"s range: [{min(s_vals):.3e}, {max(s_vals):.3e}], s>0: {n_nonzero}")
 
@@ -1683,7 +1683,7 @@ def iterative_constraint_exchange(
         n_violated = int(np.sum(violations > viol_tol))
         n_consistent_violated = sum(
             1 for i in range(N)
-            if violations[i] > viol_tol and float(all_vertices[i]["s"]) < 1e-6
+            if violations[i] > viol_tol and float(all_vertices[i]["s"]) == 0.0
         )
 
         if verbose:
@@ -1722,16 +1722,16 @@ def iterative_constraint_exchange(
 
         swap_in_viol = float(violations[swap_in_idx])
         swap_in_tier = int(tier[swap_in_idx])
-        will_add_nonzero = s_all[swap_in_idx] > 1e-12
+        will_add_nonzero = s_all[swap_in_idx] > 0.0
 
         # --- Find swap-out: most redundant, respecting tier & m_incon ---
         active_violations = {i: violations[i] for i in active_idx}
         candidates_remove = sorted(active_violations.keys(), key=lambda i: active_violations[i])
 
-        active_s_nonzero_count = sum(1 for i in active_idx if s_all[i] > 1e-12)
+        active_s_nonzero_count = sum(1 for i in active_idx if s_all[i] > 0.0)
 
         def _can_remove(i: int) -> bool:
-            removing_nonzero = s_all[i] > 1e-12
+            removing_nonzero = s_all[i] > 0.0
             new_count = active_s_nonzero_count - (1 if removing_nonzero else 0) + (1 if will_add_nonzero else 0)
             return new_count >= m_incon
 
@@ -2190,7 +2190,7 @@ def plot_stage3_A_C_publication(
     out_dir = syn.fig_out_dir
 
     display_name = {
-        "Proposed": "Proposed (Data-weighted Relax)",
+        "Proposed": "Proposed (Soft Fusion)",
         "BaselineB(NoRelax)": "Baseline B (No Relaxation)",
         "NominalLQR": "Nominal LQR",
     }
@@ -2621,7 +2621,7 @@ def plot_gamma_comparison_nature(
             color="black", linewidth=0.6)
 
     imp = (gamma_baseB - gamma_prop) / gamma_baseB * 100
-    ax.text((xB + xP) / 2.0, y_text, f"$-${imp:.1f}\\% Conservatism",
+    ax.text((xB + xP) / 2.0, y_text, f"{imp:.1f}\\% lower optimized $\\gamma$",
             ha='center', va='bottom', fontsize=7, fontweight='bold')
 
     ax.set_ylabel(r"$H_\infty$ Performance Level $\gamma$", fontsize=8)
