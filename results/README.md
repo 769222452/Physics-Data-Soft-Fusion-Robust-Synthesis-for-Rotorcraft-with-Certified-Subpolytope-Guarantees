@@ -18,6 +18,9 @@ saved files. The software and solver environment is recorded in
 - `score_hull_check/`: the manuscript-facing saved-solution certificate check.
 - `generator_qmi/`: the raw-QMI evaluation of the saved batch-generating
   models.
+- `raw_qmi_score_diagnostic/`: per-vertex comparison of the legacy complete-QMI
+  eigenvalue and the signed successor-state margin, including the downstream
+  rerun decision.
 - `posthoc_statistics/`: confidence intervals and paired comparisons computed
   from the saved Monte Carlo trials.
 

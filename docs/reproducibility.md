@@ -26,6 +26,7 @@ listed in `rerun_environment.txt`.
 | `src/vertex_selection_ablation.py` | Vertex-selection ablation | `results/tables/vertex_selection_*` |
 | `src/posthoc_score_hull_check.py` | Saved score-bounded certificate check | `results/score_hull_check/` |
 | `src/postprocess_generator_qmi.py` | Saved batch-generator raw-QMI evaluation | `results/generator_qmi/` |
+| `src/diagnose_raw_qmi_scores.py` | Full-QMI and signed dynamics-score comparison from saved batches | `results/raw_qmi_score_diagnostic/` |
 | `src/postprocess_monte_carlo_statistics.py` | Statistics from paired saved trials | `results/posthoc_statistics/` |
 | `src/plot_saved_time_domain_figures.py` | Figure export from saved trajectories | `results/figures/time_domain_*` |
 
@@ -112,6 +113,14 @@ The archived data-fusion files retain the legacy field
 unambiguous raw and processed counts are `sum(raw_scores <= 0)` and
 `sum(processed_scores == 0)`. Current full runs also emit
 `score_n_raw_consistent` and `score_n_zero_processed`.
+
+The archived endpoint `raw_scores` were produced from the largest eigenvalue
+of the complete QMI residual. For the released endpoint libraries, they agree
+with the signed successor-state margins to the tolerances documented in
+`results/raw_qmi_score_diagnostic/RAW_QMI_SCORE_DIAGNOSTIC.md`; the processed
+scores, anchor sets, score ordering, SFPS tiers, and SFPS initialization are
+unchanged. Current synthesis scripts use the successor-state margin directly
+and retain the complete residual as a consistency-equivalence diagnostic.
 
 ## Seeds and Solver Acceptance
 

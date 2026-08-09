@@ -10,6 +10,13 @@ from typing import Dict, List, Tuple, Optional, Sequence, Callable, Any
 
 import numpy as np
 from score_processing import nonnegative_quantile_threshold
+from raw_qmi_scores import (
+    aggregate_residual_bound,
+    dynamics_qmi_raw_score,
+    dynamics_residual_matrix,
+    full_qmi_residual,
+    largest_eigenvalue,
+)
 from numpy.linalg import eigvalsh
 import scipy.linalg as la
 
@@ -632,9 +639,6 @@ def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_ove
             "vertices and the batch generator"
         )
     Wc_block = np.asarray(W_c_supplied, dtype=float)
-    Dt_top = L * Wc_block
-    Dt_block = la.block_diag(Dt_top, np.zeros((16, 16)))
-
     W_E = batch.get("W_E", None)
     if W_E is None:
         raise ValueError(
@@ -643,8 +647,7 @@ def build_psi_data(batch: Dict[str, np.ndarray], syn: SynthesisParams, d_max_ove
         )
     W_E = np.asarray(W_E, dtype=float)
 
-    # \tilde R_t = 2 * Dt_block + 2 * W_E   (paper eq:Rtilde_def, scheme A)
-    Rtilde = 2.0 * Dt_block + 2.0 * W_E
+    Rtilde = aggregate_residual_bound(Wc_block, W_E, L)
 
     Psi = np.block([
         [V @ V.T, -(V @ Xbreve.T)],
@@ -672,20 +675,21 @@ def enumerate_vertices(bounds: ParamBounds) -> List[Dict[str, float]]:
 
 
 
-# All manuscript scripts use mode="lambda_max". Alternative score modes are
-# retained for method-comparison checks and are not used for the reported results.
+# All manuscript scripts use mode="lambda_max", the signed successor-state
+# margin. The complete-QMI eigenvalue remains available as a diagnostic.
 def compute_vertex_score_scalar(
         Delta_i: np.ndarray,
         Psi_data: np.ndarray,
         mode: str = "lambda_max",
 ) -> float:
-    M = np.hstack([Delta_i, np.eye(32)])
-    S = M @ Psi_data @ M.T
-    S = 0.5 * (S + S.T)
+    if mode == "lambda_max":
+        return dynamics_qmi_raw_score(Delta_i, Psi_data, successor_dim=16)
+
+    S = full_qmi_residual(Delta_i, Psi_data)
 
     ev = eigvalsh(S)
 
-    if mode == "lambda_max":  # Canonical manuscript definition: s_i^raw = lambda_max.
+    if mode == "full_qmi_lambda_max":
         return float(ev[-1])
     elif mode == "trace":
         return float(-np.trace(S))
@@ -696,7 +700,10 @@ def compute_vertex_score_scalar(
     elif mode == "mean_eig":
         return float(np.mean(ev))
     else:
-        raise ValueError("mode must be one of: trace / lambda_max / pos_eig_sum / min_eig / mean_eig")
+        raise ValueError(
+            "mode must be one of: lambda_max / full_qmi_lambda_max / trace / "
+            "pos_eig_sum / min_eig / mean_eig"
+        )
 
 
 def build_all_vertices_and_scores(
@@ -706,6 +713,7 @@ def build_all_vertices_and_scores(
         score_mode: str = "lambda_max",
         max_vertices: Optional[int] = None,
         seed: int = 123,
+        batch: Optional[Dict[str, np.ndarray]] = None,
 ) -> List[Dict[str, object]]:
     Ts, g = syn.Ts, syn.g
     Cc, Dc = build_performance_matrices(syn)
@@ -716,13 +724,42 @@ def build_all_vertices_and_scores(
         idx = rng.choice(len(verts), size=max_vertices, replace=False)
         verts = [verts[i] for i in idx]
 
+    direct_score_context = None
+    if score_mode == "lambda_max" and batch is not None:
+        regressor = np.vstack((batch["X_t"], batch["U_t"]))
+        successor = np.asarray(batch["X_tp1"], dtype=float)
+        aggregate_bound = aggregate_residual_bound(
+            np.asarray(batch["W_c"], dtype=float),
+            np.asarray(batch["W_E"], dtype=float),
+            int(successor.shape[1]),
+        )
+        direct_score_context = (
+            regressor,
+            successor,
+            aggregate_bound[:successor.shape[0], :successor.shape[0]],
+        )
+
     out = []
     for p in verts:
         A, B, S_c = build_vertex_matrices(p, Ts, g)
         Delta = np.block([[A, B],
                           [Cc, Dc]])
-        s_i = compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode)
-        out.append(dict(A=A, B=B, S=S_c, C=Cc, D=Dc, Delta=Delta, s=s_i, p=p))
+        if direct_score_context is None:
+            s_i = compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode)
+        else:
+            regressor, successor, successor_bound = direct_score_context
+            _, score_matrix = dynamics_residual_matrix(
+                Delta[:successor.shape[0], :],
+                regressor,
+                successor,
+                successor_bound,
+            )
+            s_i = largest_eigenvalue(score_matrix)
+        s_full_qmi = compute_vertex_score_scalar(
+            Delta, Psi_data, mode="full_qmi_lambda_max"
+        )
+        out.append(dict(A=A, B=B, S=S_c, C=Cc, D=Dc, Delta=Delta,
+                        s=s_i, s_full_qmi=s_full_qmi, p=p))
     return out
 
 
@@ -2434,7 +2471,8 @@ def synthesize_controllers_for_stage3(
         bounds, syn, Psi,
         score_mode=score_mode,
         max_vertices=1024,
-        seed=syn.seed + 1234
+        seed=syn.seed + 1234,
+        batch=batch,
     )
 
     raw_s_values = np.array([v["s"] for v in verts_all], dtype=float)

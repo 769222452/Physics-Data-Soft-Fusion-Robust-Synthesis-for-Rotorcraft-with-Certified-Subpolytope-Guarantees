@@ -1,0 +1,269 @@
+{
+  "analysis": "legacy full-QMI versus dynamics-block signed raw scores",
+  "formal_data_consistency_set_changed": false,
+  "solver_called": false,
+  "batch_regenerated": false,
+  "monte_carlo_rerun": false,
+  "time_domain_rerun": false,
+  "tolerances": {
+    "raw_absolute": 1e-08,
+    "raw_relative": 1e-12,
+    "processed_absolute": 1e-12,
+    "processed_relative": 1e-12,
+    "structure_absolute": 1e-08,
+    "relative_denominator_floor": 1e-12,
+    "score_denominator_epsilon": 1e-12,
+    "sigma_degeneracy": 1e-10
+  },
+  "score_hyperparameters": {
+    "tau": 0.0,
+    "q_tau": 0.1,
+    "q_sigma": 0.9,
+    "r_trigger": 0.01
+  },
+  "sfps_settings_checked": {
+    "budget": 20,
+    "ratios": [
+      0.4,
+      0.2,
+      0.4
+    ],
+    "seed": 7803
+  },
+  "scenarios": [
+    {
+      "scenario": "Standard",
+      "source_file": "results/raw/standard_data_fusion_diagnostics.npz",
+      "endpoint_csv": "results/raw_qmi_score_diagnostic/standard_endpoint_scores.csv",
+      "endpoint_count": 1024,
+      "dimensions": {
+        "delta": [
+          32,
+          20
+        ],
+        "psi": [
+          52,
+          52
+        ],
+        "full_residual": [
+          32,
+          32
+        ],
+        "dynamics_residual": [
+          16,
+          16
+        ],
+        "regressor": [
+          20,
+          1200
+        ]
+      },
+      "old_full_score_reproduction_max_abs_error": 0.0,
+      "new_qmi_block_vs_direct_max_abs_score_error": 4.638422979041934e-11,
+      "old_vs_new_max_absolute_difference": 4.6838977141305804e-11,
+      "old_vs_new_max_relative_difference": 4.964462511625866e-14,
+      "raw_scores_close_under_tolerance": true,
+      "raw_score_order_equal": true,
+      "old_raw_consistent_count": 0,
+      "new_raw_consistent_count": 0,
+      "endpoint_feasibility_classification_equal": true,
+      "old_tau_effective": 379.52279612982807,
+      "new_tau_effective": 379.5227961298117,
+      "old_anchor_count": 103,
+      "new_anchor_count": 103,
+      "anchor_index_set_equal": true,
+      "old_sigma_s": 2.7785088151238764,
+      "new_sigma_s": 2.7785088151238577,
+      "processed_score_max_absolute_difference": 3.9968028886505635e-15,
+      "archived_processed_reproduction_max_abs_error": 0.0,
+      "processed_scores_close_under_tolerance": true,
+      "processed_score_order_equal": true,
+      "sfps_tier_membership_equal": true,
+      "sfps_tier_difference_count": 0,
+      "sfps_initial_indices_old": [
+        258,
+        893,
+        415,
+        998,
+        811,
+        858,
+        371,
+        293,
+        965,
+        62,
+        906,
+        498,
+        120,
+        645,
+        239,
+        530,
+        734,
+        180,
+        555,
+        67
+      ],
+      "sfps_initial_indices_new": [
+        258,
+        893,
+        415,
+        998,
+        811,
+        858,
+        371,
+        293,
+        965,
+        62,
+        906,
+        498,
+        120,
+        645,
+        239,
+        530,
+        734,
+        180,
+        555,
+        67
+      ],
+      "sfps_initialization_equal": true,
+      "structural_diagnostics": {
+        "max_entry_full_minus_exact_block_form": 9.074673256691007e-11,
+        "max_entry_qmi_dynamics_minus_direct_dynamics": 4.229150363244116e-11,
+        "max_output_block_spectral_norm": 9.667487001578963e-11,
+        "max_cross_block_spectral_norm": 1.904547873450826e-11,
+        "within_structure_tolerance": true
+      },
+      "generator": {
+        "full_qmi_largest_eigenvalue": 9.667930374294771e-11,
+        "dynamics_qmi_block_largest_eigenvalue": -148.2923900254284,
+        "dynamics_signed_raw_score": -148.2923900254325,
+        "dynamics_residual_minimum_eigenvalue": -150.10463455726494,
+        "dynamics_residual_maximum_eigenvalue": -148.2923900254325,
+        "dynamics_qmi_vs_direct_max_abs_entry": 2.7114310796605423e-11,
+        "state_residual_frobenius_norm": 2.4007595980593326,
+        "performance_output_residual_max_abs": 8.881784197001252e-16,
+        "full_qmi_cross_block_spectral_norm": 1.783952380368226e-11,
+        "full_qmi_output_block_spectral_norm": 9.667487001578963e-11,
+        "full_positive_due_to_zero_block_roundoff": true
+      },
+      "downstream_quantities_unchanged": true
+    },
+    {
+      "scenario": "Expanded",
+      "source_file": "results/raw/expanded_data_fusion_diagnostics.npz",
+      "endpoint_csv": "results/raw_qmi_score_diagnostic/expanded_endpoint_scores.csv",
+      "endpoint_count": 1024,
+      "dimensions": {
+        "delta": [
+          32,
+          20
+        ],
+        "psi": [
+          52,
+          52
+        ],
+        "full_residual": [
+          32,
+          32
+        ],
+        "dynamics_residual": [
+          16,
+          16
+        ],
+        "regressor": [
+          20,
+          1200
+        ]
+      },
+      "old_full_score_reproduction_max_abs_error": 0.0,
+      "new_qmi_block_vs_direct_max_abs_score_error": 7.185008144006133e-11,
+      "old_vs_new_max_absolute_difference": 7.23048287909478e-11,
+      "old_vs_new_max_relative_difference": 2.2903243214197605e-14,
+      "raw_scores_close_under_tolerance": true,
+      "raw_score_order_equal": true,
+      "old_raw_consistent_count": 0,
+      "new_raw_consistent_count": 0,
+      "endpoint_feasibility_classification_equal": true,
+      "old_tau_effective": 3037.8747666386917,
+      "new_tau_effective": 3037.8747666387594,
+      "old_anchor_count": 103,
+      "new_anchor_count": 103,
+      "anchor_index_set_equal": true,
+      "old_sigma_s": 8.147221524024781,
+      "new_sigma_s": 8.147221524024703,
+      "processed_score_max_absolute_difference": 8.881784197001252e-16,
+      "archived_processed_reproduction_max_abs_error": 0.0,
+      "processed_scores_close_under_tolerance": true,
+      "processed_score_order_equal": true,
+      "sfps_tier_membership_equal": true,
+      "sfps_tier_difference_count": 0,
+      "sfps_initial_indices_old": [
+        258,
+        893,
+        415,
+        998,
+        811,
+        858,
+        371,
+        293,
+        965,
+        62,
+        394,
+        1010,
+        120,
+        645,
+        239,
+        539,
+        734,
+        180,
+        35,
+        578
+      ],
+      "sfps_initial_indices_new": [
+        258,
+        893,
+        415,
+        998,
+        811,
+        858,
+        371,
+        293,
+        965,
+        62,
+        394,
+        1010,
+        120,
+        645,
+        239,
+        539,
+        734,
+        180,
+        35,
+        578
+      ],
+      "sfps_initialization_equal": true,
+      "structural_diagnostics": {
+        "max_entry_full_minus_exact_block_form": 6.730260793119669e-11,
+        "max_entry_qmi_dynamics_minus_direct_dynamics": 6.730260793119669e-11,
+        "max_output_block_spectral_norm": 4.670253818122713e-11,
+        "max_cross_block_spectral_norm": 3.283717429131565e-11,
+        "within_structure_tolerance": true
+      },
+      "generator": {
+        "full_qmi_largest_eigenvalue": 4.668459817884493e-11,
+        "dynamics_qmi_block_largest_eigenvalue": -148.74698051289602,
+        "dynamics_signed_raw_score": -148.7469805128833,
+        "dynamics_residual_minimum_eigenvalue": -150.54835450397715,
+        "dynamics_residual_maximum_eigenvalue": -148.7469805128833,
+        "dynamics_qmi_vs_direct_max_abs_entry": 4.126832209294662e-11,
+        "state_residual_frobenius_norm": 2.395243001301336,
+        "performance_output_residual_max_abs": 1.7763568394002505e-15,
+        "full_qmi_cross_block_spectral_norm": 2.5962882954182486e-11,
+        "full_qmi_output_block_spectral_norm": 4.670253818122713e-11,
+        "full_positive_due_to_zero_block_roundoff": true
+      },
+      "downstream_quantities_unchanged": true
+    }
+  ],
+  "downstream_rerun_required": false,
+  "rerun_decision": "No downstream controller re-synthesis is required because the quantities entering the SDP and SFPS+ICE are unchanged."
+}

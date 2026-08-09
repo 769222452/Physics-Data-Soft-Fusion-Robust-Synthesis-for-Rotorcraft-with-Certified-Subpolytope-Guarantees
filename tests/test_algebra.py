@@ -10,6 +10,11 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(SRC))
 
 import time_domain_standard as model  # noqa: E402
+from raw_qmi_scores import (  # noqa: E402
+    dynamics_qmi_raw_score,
+    dynamics_residual_matrix,
+    full_qmi_raw_score,
+)
 
 
 class AlgebraTests(unittest.TestCase):
@@ -58,6 +63,47 @@ class AlgebraTests(unittest.TestCase):
         expanded = multiplier @ Psi @ multiplier.T
         residual = Delta @ V - Xnext
         np.testing.assert_allclose(expanded, residual @ residual.T - R, atol=1e-10)
+
+    def test_structural_output_zero_block_preserves_qmi_feasibility(self):
+        rng = np.random.default_rng(101)
+        regressor = rng.standard_normal((20, 50))
+        state_input = rng.standard_normal((16, 20))
+        output_matrix = rng.standard_normal((16, 20))
+        state_error = 0.01 * rng.standard_normal((16, 50))
+        successor = state_input @ regressor + state_error
+        output = output_matrix @ regressor
+        observations = np.vstack((successor, output))
+        successor_bound = state_error @ state_error.T + 0.5 * np.eye(16)
+        full_bound = la.block_diag(successor_bound, np.zeros((16, 16)))
+        psi = np.block(
+            [
+                [regressor @ regressor.T, -regressor @ observations.T],
+                [
+                    -observations @ regressor.T,
+                    observations @ observations.T - full_bound,
+                ],
+            ]
+        )
+        delta = np.vstack((state_input, output_matrix))
+        _, dynamics = dynamics_residual_matrix(
+            state_input, regressor, successor, successor_bound
+        )
+        dynamics_score = dynamics_qmi_raw_score(delta, psi)
+        full_score = full_qmi_raw_score(delta, psi)
+
+        self.assertLess(dynamics_score, 0.0)
+        self.assertAlmostEqual(dynamics_score, la.eigvalsh(dynamics)[-1])
+        self.assertAlmostEqual(full_score, 0.0, places=10)
+        self.assertAlmostEqual(full_score, max(dynamics_score, 0.0), places=10)
+        self.assertAlmostEqual(
+            model.compute_vertex_score_scalar(delta, psi), dynamics_score
+        )
+        self.assertAlmostEqual(
+            model.compute_vertex_score_scalar(
+                delta, psi, mode="full_qmi_lambda_max"
+            ),
+            full_score,
+        )
 
     def test_zero_score_removes_surrogate_slack_exactly(self):
         rng = np.random.default_rng(11)

@@ -86,60 +86,10 @@ def check_scenario(
         raise RuntimeError("the full-library surrogate check is incomplete")
 
     anchor_indices = np.flatnonzero(library.processed_scores == 0.0)
-    if anchor_indices.size == 0:
-        raise ValueError(f"{spec.name}: no zero-slack anchors were found")
-    coefficient_result = find_minimum_common_coefficient(
-        library,
-        solution,
-        anchor_indices,
-        strict_tol=strict_tolerance,
-        bar_lambda_tol=coefficient_tolerance,
-        max_iterations=maximum_iterations,
-    )
-    bar_lambda = float(coefficient_result["bar_lambda"])
-
-    identity = np.eye(solution.Q.shape[0])
-    P = symmetrize(la.solve(solution.Q, identity, assume_a="pos"))
-    effective_coefficients, _ = effective_decay_coefficients(
-        solution.decay_rate,
-        solution.beta,
-        library.processed_scores,
-        P,
-    )
-    score_indices = np.flatnonzero(effective_coefficients <= bar_lambda)
-    if score_indices.size == 0:
-        raise RuntimeError(f"{spec.name}: the score-bounded set is empty")
-
-    _, selected_residuals, selected_scaled = vertex_residuals(
-        library,
-        solution,
-        decay_rate=bar_lambda,
-        score_weighted=False,
-        indices=score_indices,
-        include_scaled=True,
-    )
-    assert selected_scaled is not None
-
-    worst_selected = float(np.max(selected_residuals))
-    if worst_selected > -strict_tolerance:
-        raise RuntimeError(
-            f"{spec.name}: selected score set fails the requested "
-            f"negative margin ({worst_selected:.6e})"
-        )
-
-    return {
+    base_row = {
         "scenario": spec.name,
         "N": library.size,
         "N_anchor": int(anchor_indices.size),
-        "bar_lambda_anchor": bar_lambda,
-        "N_score": int(score_indices.size),
-        "N_positive_score_selected": int(
-            np.count_nonzero(library.processed_scores[score_indices] > 0.0)
-        ),
-        "worst_selected_set_BRL_residual": worst_selected,
-        "worst_selected_set_BRL_scaled_residual": float(
-            np.max(selected_scaled)
-        ),
         "strict_tolerance": strict_tolerance,
         "worst_full_library_surrogate_residual": float(
             np.max(surrogate_residuals)
@@ -154,19 +104,91 @@ def check_scenario(
         **health,
     }
 
+    coefficient_result = find_minimum_common_coefficient(
+        library,
+        solution,
+        anchor_indices,
+        strict_tol=strict_tolerance,
+        bar_lambda_tol=coefficient_tolerance,
+        max_iterations=maximum_iterations,
+    )
+    if not coefficient_result["found"]:
+        return {
+            **base_row,
+            "diagnostic_status": str(coefficient_result["status"]),
+            "bar_lambda_anchor": None,
+            "N_score": None,
+            "N_positive_score_selected": None,
+            "worst_selected_set_BRL_residual": None,
+            "worst_selected_set_BRL_scaled_residual": None,
+        }
+    bar_lambda = float(coefficient_result["bar_lambda"])
+
+    identity = np.eye(solution.Q.shape[0])
+    P = symmetrize(la.solve(solution.Q, identity, assume_a="pos"))
+    effective_coefficients, _ = effective_decay_coefficients(
+        solution.decay_rate,
+        solution.beta,
+        library.processed_scores,
+        P,
+    )
+    score_indices = np.flatnonzero(effective_coefficients <= bar_lambda)
+    if score_indices.size == 0:
+        return {
+            **base_row,
+            "diagnostic_status": "score-bounded set is empty",
+            "bar_lambda_anchor": bar_lambda,
+            "N_score": 0,
+            "N_positive_score_selected": 0,
+            "worst_selected_set_BRL_residual": None,
+            "worst_selected_set_BRL_scaled_residual": None,
+        }
+
+    _, selected_residuals, selected_scaled = vertex_residuals(
+        library,
+        solution,
+        decay_rate=bar_lambda,
+        score_weighted=False,
+        indices=score_indices,
+        include_scaled=True,
+    )
+    assert selected_scaled is not None
+
+    worst_selected = float(np.max(selected_residuals))
+    diagnostic_status = "strict score-bounded residual found"
+    if worst_selected > -strict_tolerance:
+        diagnostic_status = "score-bounded set fails the requested strict residual"
+
+    return {
+        **base_row,
+        "diagnostic_status": diagnostic_status,
+        "bar_lambda_anchor": bar_lambda,
+        "N_score": int(score_indices.size),
+        "N_positive_score_selected": int(
+            np.count_nonzero(library.processed_scores[score_indices] > 0.0)
+        ),
+        "worst_selected_set_BRL_residual": worst_selected,
+        "worst_selected_set_BRL_scaled_residual": float(
+            np.max(selected_scaled)
+        ),
+    }
+
 
 def write_outputs(rows: List[Dict[str, object]], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     with (output_dir / "score_hull_check.json").open(
-        "w", encoding="utf-8"
+        "w", encoding="utf-8", newline="\n"
     ) as stream:
         json.dump({"scenarios": rows}, stream, indent=2)
+        stream.write("\n")
 
     fieldnames = list(rows[0].keys())
     with (output_dir / "score_hull_check.csv").open(
         "w", newline="", encoding="utf-8"
     ) as stream:
-        writer = csv.DictWriter(stream, fieldnames=fieldnames)
+        writer = csv.DictWriter(
+            stream, fieldnames=fieldnames, lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -189,12 +211,22 @@ def write_outputs(rows: List[Dict[str, object]], output_dir: Path) -> None:
         ),
         r"\midrule",
     ]
+
+    def latex_number(value: object, format_spec: str) -> str:
+        if value is None:
+            return "---"
+        number = float(value)
+        if not np.isfinite(number):
+            return "---"
+        return format(number, format_spec)
+
     for row in rows:
         lines.append(
             f"{row['scenario']} & {row['N']} & {row['N_anchor']} & "
-            f"{row['bar_lambda_anchor']:.6f} & {row['N_score']} & "
-            f"{row['N_positive_score_selected']} & "
-            f"${row['worst_selected_set_BRL_residual']:.2e}$ \\\\"
+            f"{latex_number(row['bar_lambda_anchor'], '.6f')} & "
+            f"{latex_number(row['N_score'], '.0f')} & "
+            f"{latex_number(row['N_positive_score_selected'], '.0f')} & "
+            f"${latex_number(row['worst_selected_set_BRL_residual'], '.2e')}$ \\\\"
         )
     lines.extend(
         [
@@ -204,9 +236,10 @@ def write_outputs(rows: List[Dict[str, object]], output_dir: Path) -> None:
             "",
         ]
     )
-    (output_dir / "score_hull_table.tex").write_text(
-        "\n".join(lines), encoding="utf-8"
-    )
+    with (output_dir / "score_hull_table.tex").open(
+        "w", encoding="utf-8", newline="\n"
+    ) as stream:
+        stream.write("\n".join(lines))
 
     metadata = {
         "script": "src/posthoc_score_hull_check.py",
@@ -217,9 +250,10 @@ def write_outputs(rows: List[Dict[str, object]], output_dir: Path) -> None:
         "offline_batch_regenerated": False,
         "controller_modified": False,
     }
-    (output_dir / "run_metadata.json").write_text(
-        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
-    )
+    with (output_dir / "run_metadata.json").open(
+        "w", encoding="utf-8", newline="\n"
+    ) as stream:
+        stream.write(json.dumps(metadata, indent=2) + "\n")
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:

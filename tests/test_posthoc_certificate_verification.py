@@ -81,9 +81,76 @@ class PosthocCertificateVerificationTests(unittest.TestCase):
             bar_lambda_tol=1e-10,
             max_iterations=80,
         )
+        self.assertTrue(result["found"])
         self.assertGreater(result["bar_lambda"], 0.81)
         self.assertLess(result["bar_lambda"], 0.811)
         self.assertLessEqual(result["upper_residual_final"], -1e-8)
+
+    def test_minimum_coefficient_reports_empty_verification_set(self):
+        library = verify.VertexLibrary(
+            A=(0.9 * np.eye(16))[None, :, :],
+            B=self.B[None, :, :],
+            C=self.C[None, :, :],
+            D=self.D[None, :, :],
+            S=self.S[None, :, :],
+            raw_scores=np.array([-1.0]),
+            processed_scores=np.array([0.0]),
+        )
+        solution = verify.SavedSolution(
+            Q=self.Q,
+            Y=self.Y,
+            K=self.Y,
+            beta=0.0,
+            gamma2=2.0,
+            mu=1.0,
+            decay_rate=0.5,
+            used_saved_y=True,
+            resolved_keys={},
+        )
+        result = verify.find_minimum_common_coefficient(
+            library,
+            solution,
+            np.array([], dtype=int),
+            strict_tol=1e-8,
+            bar_lambda_tol=1e-10,
+            max_iterations=80,
+        )
+        self.assertFalse(result["found"])
+        self.assertEqual(result["status"], "empty verification set")
+        self.assertIsNone(result["bar_lambda"])
+
+    def test_minimum_coefficient_reports_absent_strict_solution(self):
+        library = verify.VertexLibrary(
+            A=(1.2 * np.eye(16))[None, :, :],
+            B=self.B[None, :, :],
+            C=self.C[None, :, :],
+            D=self.D[None, :, :],
+            S=self.S[None, :, :],
+            raw_scores=np.array([1.0]),
+            processed_scores=np.array([1.0]),
+        )
+        solution = verify.SavedSolution(
+            Q=self.Q,
+            Y=self.Y,
+            K=self.Y,
+            beta=0.0,
+            gamma2=2.0,
+            mu=1.0,
+            decay_rate=0.5,
+            used_saved_y=True,
+            resolved_keys={},
+        )
+        result = verify.find_minimum_common_coefficient(
+            library,
+            solution,
+            np.array([0]),
+            strict_tol=1e-8,
+            bar_lambda_tol=1e-10,
+            max_iterations=80,
+        )
+        self.assertFalse(result["found"])
+        self.assertIn("no common coefficient", result["status"])
+        self.assertIsNone(result["bar_lambda"])
 
     def test_dual_run_writes_required_outputs(self):
         theta = np.block([[self.A, self.B], [self.C, self.D]])[None, :, :]

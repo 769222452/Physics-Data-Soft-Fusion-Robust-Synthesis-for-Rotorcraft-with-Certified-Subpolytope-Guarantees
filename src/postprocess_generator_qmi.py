@@ -10,17 +10,16 @@ from typing import Any
 
 import numpy as np
 
+from raw_qmi_scores import (
+    aggregate_residual_bound,
+    dynamics_qmi_residual,
+    dynamics_residual_matrix,
+    full_qmi_residual,
+    largest_eigenvalue,
+)
+
 
 REPORTING_TOLERANCE = 1.0e-8
-
-
-def sym(matrix: np.ndarray) -> np.ndarray:
-    return 0.5 * (matrix + matrix.T)
-
-
-def score_matrix(delta: np.ndarray, psi: np.ndarray) -> np.ndarray:
-    selector = np.hstack((delta, np.eye(delta.shape[0])))
-    return sym(selector @ psi @ selector.T)
 
 
 def evaluate(name: str, source: Path) -> dict[str, Any]:
@@ -41,22 +40,42 @@ def evaluate(name: str, source: Path) -> dict[str, Any]:
         endpoint_delta = np.asarray(archive["vertex_delta"], dtype=float)
         archived_scores = np.asarray(archive["raw_scores"], dtype=float)
         zero_score_mask = np.asarray(archive["zero_score_mask"], dtype=bool)
+        X_t = np.asarray(archive["batch_X_t"], dtype=float)
+        U_t = np.asarray(archive["batch_U_t"], dtype=float)
+        X_tp1 = np.asarray(archive["batch_X_tp1"], dtype=float)
+        W_c = np.asarray(archive["W_c"], dtype=float)
+        W_E = np.asarray(archive["W_E"], dtype=float)
 
-    matrix = score_matrix(generator_delta, psi)
-    # Match the eigensolver used by the released score-construction code.
-    eigenvalues = np.linalg.eigvalsh(matrix)
-    score = float(eigenvalues[-1])
-    norm_2 = float(np.max(np.abs(eigenvalues)))
-    reproduced = np.asarray(
+    regressor = np.vstack((X_t, U_t))
+    residual_bound = aggregate_residual_bound(W_c, W_E, X_t.shape[1])
+    successor_bound = residual_bound[:16, :16]
+    full_matrix = full_qmi_residual(generator_delta, psi)
+    full_eigenvalues = np.linalg.eigvalsh(full_matrix)
+    _, dynamics_matrix = dynamics_residual_matrix(
+        generator_delta[:16, :], regressor, X_tp1, successor_bound
+    )
+    dynamics_eigenvalues = np.linalg.eigvalsh(dynamics_matrix)
+    dynamics_qmi_matrix = dynamics_qmi_residual(generator_delta, psi)
+    full_score = float(full_eigenvalues[-1])
+    score = float(dynamics_eigenvalues[-1])
+    norm_2 = float(np.max(np.abs(dynamics_eigenvalues)))
+    reproduced_full = np.asarray(
         [
-            np.linalg.eigvalsh(score_matrix(delta, psi))[-1]
+            largest_eigenvalue(full_qmi_residual(delta, psi))
+            for delta in endpoint_delta
+        ],
+        dtype=float,
+    )
+    reproduced_dynamics = np.asarray(
+        [
+            largest_eigenvalue(dynamics_qmi_residual(delta, psi))
             for delta in endpoint_delta
         ],
         dtype=float,
     )
 
     if score <= 0.0:
-        status = "Raw-QMI consistent"
+        status = "Negative dynamics-block margin"
     elif score <= REPORTING_TOLERANCE:
         status = "Numerically near boundary (positive)"
     else:
@@ -66,18 +85,31 @@ def evaluate(name: str, source: Path) -> dict[str, Any]:
         "scenario": name,
         "source_file": source.as_posix(),
         "generator_raw_qmi_score": score,
+        "generator_full_qmi_largest_eigenvalue": full_score,
+        "generator_dynamics_qmi_block_largest_eigenvalue": largest_eigenvalue(
+            dynamics_qmi_matrix
+        ),
+        "generator_dynamics_residual_minimum_eigenvalue": float(
+            dynamics_eigenvalues[0]
+        ),
+        "generator_dynamics_residual_maximum_eigenvalue": float(
+            dynamics_eigenvalues[-1]
+        ),
         "status": status,
-        "passes_exact_nonpositive_test": bool(score <= 0.0),
-        "n_raw": int(np.sum(archived_scores <= 0.0)),
+        "dynamics_margin_nonpositive": bool(score <= 0.0),
+        "n_raw": int(np.sum(reproduced_dynamics <= 0.0)),
         "n_anchor": int(np.sum(zero_score_mask)),
         "qmi_matrix_norm_2": norm_2,
         "relative_positive_residual": float(max(score, 0.0) / max(norm_2, 1.0)),
-        "positive_eigenvalue_count": int(np.sum(eigenvalues > 0.0)),
+        "positive_eigenvalue_count": int(np.sum(dynamics_eigenvalues > 0.0)),
         "positive_eigenvalue_count_above_reporting_tolerance": int(
-            np.sum(eigenvalues > REPORTING_TOLERANCE)
+            np.sum(dynamics_eigenvalues > REPORTING_TOLERANCE)
         ),
         "endpoint_score_max_abs_reproduction_error": float(
-            np.max(np.abs(reproduced - archived_scores))
+            np.max(np.abs(reproduced_dynamics - archived_scores))
+        ),
+        "endpoint_full_qmi_max_abs_reproduction_error": float(
+            np.max(np.abs(reproduced_full - archived_scores))
         ),
     }
 
@@ -87,8 +119,12 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "scenario",
         "source_file",
         "generator_raw_qmi_score",
+        "generator_full_qmi_largest_eigenvalue",
+        "generator_dynamics_qmi_block_largest_eigenvalue",
+        "generator_dynamics_residual_minimum_eigenvalue",
+        "generator_dynamics_residual_maximum_eigenvalue",
         "status",
-        "passes_exact_nonpositive_test",
+        "dynamics_margin_nonpositive",
         "n_raw",
         "n_anchor",
         "qmi_matrix_norm_2",
@@ -96,9 +132,12 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         "positive_eigenvalue_count",
         "positive_eigenvalue_count_above_reporting_tolerance",
         "endpoint_score_max_abs_reproduction_error",
+        "endpoint_full_qmi_max_abs_reproduction_error",
     )
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(
+            handle, fieldnames=fields, lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -116,11 +155,12 @@ def main() -> int:
         evaluate("Expanded", args.expanded),
     ]
     report = {
-        "analysis": "generator raw-QMI score from saved artifacts",
+        "analysis": "generator dynamics-block raw-QMI score from saved artifacts",
         "formula": (
-            "lambda_max(sym([Theta_gen I_32] Psi [Theta_gen^T; I_32]))"
+            "lambda_max(sym(R_x,gen R_x,gen^T - R_tilde_x,t))"
         ),
-        "exact_raw_qmi_test": "score <= 0",
+        "full_qmi_retained_as_diagnostic": True,
+        "numerical_raw_margin_test": "dynamics-block score <= 0",
         "near_boundary_reporting_tolerance": REPORTING_TOLERANCE,
         "batch_regenerated": False,
         "solver_called": False,
@@ -129,9 +169,8 @@ def main() -> int:
     }
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.csv_output.parent.mkdir(parents=True, exist_ok=True)
-    args.json_output.write_text(
-        json.dumps(report, indent=2) + "\n", encoding="utf-8"
-    )
+    with args.json_output.open("w", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(report, indent=2) + "\n")
     write_csv(args.csv_output, rows)
     return 0
 

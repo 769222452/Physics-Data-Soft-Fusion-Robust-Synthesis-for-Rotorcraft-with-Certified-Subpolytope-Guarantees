@@ -190,13 +190,22 @@ class ReleasedArtifactTests(unittest.TestCase):
             data = np.load(RAW / name, allow_pickle=False)
             psi = data["Psi"]
             self.assertLess(np.max(np.abs(psi - psi.T)), 1e-9)
-            recalculated = []
+            recalculated_full = []
+            recalculated_dynamics = []
             for delta in data["vertex_delta"]:
                 multiplier = np.hstack((delta, identity))
                 qmi = multiplier @ psi @ multiplier.T
-                recalculated.append(la.eigvalsh(0.5 * (qmi + qmi.T))[-1])
+                qmi = 0.5 * (qmi + qmi.T)
+                recalculated_full.append(la.eigvalsh(qmi)[-1])
+                recalculated_dynamics.append(la.eigvalsh(qmi[:16, :16])[-1])
             np.testing.assert_allclose(
-                recalculated, data["raw_scores"], rtol=1e-10, atol=1e-7
+                recalculated_full, data["raw_scores"], rtol=1e-10, atol=1e-7
+            )
+            np.testing.assert_allclose(
+                recalculated_dynamics,
+                data["raw_scores"],
+                rtol=1e-10,
+                atol=1e-7,
             )
             self.assertEqual(int(np.sum(data["raw_scores"] <= 0.0)), 0)
             self.assertEqual(int(np.sum(data["processed_scores"] == 0.0)), 103)

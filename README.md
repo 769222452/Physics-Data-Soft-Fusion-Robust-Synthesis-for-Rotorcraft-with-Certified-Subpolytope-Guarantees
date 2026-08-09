@@ -21,6 +21,7 @@ results/figures/             Figures used in the manuscript
 results/tables/              Numerical tables and LaTeX table rows
 results/score_hull_check/    Score-bounded certificate results
 results/generator_qmi/       Batch-generator raw-QMI evaluation
+results/raw_qmi_score_diagnostic/  Full-QMI versus signed dynamics-score audit
 results/posthoc_statistics/  Statistics computed from saved Monte Carlo trials
 results/manifest.sha256      Checksums for released results and logs
 logs/                        Reference run logs
@@ -75,6 +76,11 @@ python src/postprocess_generator_qmi.py \
   --expanded results/raw/expanded_data_fusion_diagnostics.npz \
   --json-output results/generator_qmi/generator_qmi.json \
   --csv-output results/generator_qmi/generator_qmi.csv
+
+python src/diagnose_raw_qmi_scores.py \
+  --standard results/raw/standard_data_fusion_diagnostics.npz \
+  --expanded results/raw/expanded_data_fusion_diagnostics.npz \
+  --output-dir results/raw_qmi_score_diagnostic
 
 python src/postprocess_monte_carlo_statistics.py \
   --input results/raw/fusion_ablation_monte_carlo_raw.npz \

@@ -19,6 +19,8 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 import scipy.linalg as la
 
+from raw_qmi_scores import dynamics_qmi_raw_score, full_qmi_raw_score
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STRICT_TOL_GRID = (1.0e-8, 1.0e-7, 1.0e-6)
@@ -381,17 +383,29 @@ def find_minimum_common_coefficient(
     proportional to Q. Bisection therefore returns the passing endpoint.
     """
 
-    indices = np.asarray(verification_indices, dtype=int)
-    if indices.size == 0:
-        raise ValueError("coefficient selection requires a nonempty index set")
-
     lower_initial = float(solution.decay_rate)
     upper_initial = float(np.nextafter(1.0, 0.0))
+    indices = np.asarray(verification_indices, dtype=int)
+    if indices.size == 0:
+        return {
+            "found": False,
+            "status": "empty verification set",
+            "bar_lambda": None,
+            "search_interval_initial": [lower_initial, upper_initial],
+            "search_interval_final": None,
+            "lower_residual_final": None,
+            "upper_residual_final": None,
+            "iterations": 0,
+            "converged": False,
+        }
+
     lower_residual = _worst_standard_residual(
         library, solution, indices, lower_initial
     )
     if lower_residual <= -strict_tol:
         return {
+            "found": True,
+            "status": "strict common coefficient found",
             "bar_lambda": lower_initial,
             "search_interval_initial": [lower_initial, upper_initial],
             "search_interval_final": [lower_initial, lower_initial],
@@ -405,11 +419,20 @@ def find_minimum_common_coefficient(
         library, solution, indices, upper_initial
     )
     if upper_residual > -strict_tol:
-        raise ValueError(
-            "no common coefficient below one gives the requested strict "
-            f"residual on {indices.size} selection vertices; "
-            f"worst residual near one is {upper_residual:.6e}"
-        )
+        return {
+            "found": False,
+            "status": (
+                "no common coefficient below one gives the requested "
+                "strict residual"
+            ),
+            "bar_lambda": None,
+            "search_interval_initial": [lower_initial, upper_initial],
+            "search_interval_final": [lower_initial, upper_initial],
+            "lower_residual_final": float(lower_residual),
+            "upper_residual_final": float(upper_residual),
+            "iterations": 0,
+            "converged": False,
+        }
 
     lower = lower_initial
     upper = upper_initial
@@ -432,6 +455,8 @@ def find_minimum_common_coefficient(
             library, solution, indices, upper
         )
     return {
+        "found": True,
+        "status": "strict common coefficient found",
         "bar_lambda": float(upper),
         "search_interval_initial": [lower_initial, upper_initial],
         "search_interval_final": [float(lower), float(upper)],
@@ -536,7 +561,7 @@ def matrix_rank_diagnostics(
 
 
 def raw_qmi_score(delta: np.ndarray, psi: np.ndarray) -> float:
-    """Evaluate the manuscript raw score for one composite matrix."""
+    """Evaluate the signed successor-state raw margin for one candidate."""
 
     delta = np.asarray(delta, dtype=float)
     psi = np.asarray(psi, dtype=float)
@@ -544,9 +569,7 @@ def raw_qmi_score(delta: np.ndarray, psi: np.ndarray) -> float:
         raise ValueError(f"delta has shape {delta.shape}, expected (32, 20)")
     if psi.shape != (52, 52):
         raise ValueError(f"psi has shape {psi.shape}, expected (52, 52)")
-    selector = np.hstack((delta, np.eye(32)))
-    score_matrix = _sym(selector @ psi @ selector.T)
-    return largest_eigenvalue(score_matrix)
+    return dynamics_qmi_raw_score(delta, psi, successor_dim=16)
 
 
 def _tuple_vectors(library: VertexLibrary) -> np.ndarray:
@@ -652,6 +675,7 @@ def load_fixed_batch_diagnostics(
     regressor_diagnostics = matrix_rank_diagnostics(regressor)
     affine_diagnostics = affine_rank_diagnostics(library)
     generator_raw_score = raw_qmi_score(generator_delta, psi)
+    generator_full_qmi_score = full_qmi_raw_score(generator_delta, psi)
 
     center_values = 0.5 * (
         np.min(vertex_parameters, axis=0)
@@ -673,9 +697,11 @@ def load_fixed_batch_diagnostics(
             ]
         )
         center_raw_score = raw_qmi_score(center_delta, psi)
+        center_full_qmi_score = full_qmi_raw_score(center_delta, psi)
     except (ImportError, KeyError, ValueError):
         center_S = None
         center_raw_score = math.nan
+        center_full_qmi_score = math.nan
 
     endpoint_scores = np.asarray(library.raw_scores, dtype=float)
     generator_percentile = float(
@@ -702,7 +728,11 @@ def load_fixed_batch_diagnostics(
         "regressor": regressor_diagnostics,
         "affine_tuple_hull": affine_diagnostics,
         "generator_raw_score": generator_raw_score,
+        "generator_full_qmi_largest_eigenvalue": generator_full_qmi_score,
         "center_raw_score": _json_number(center_raw_score),
+        "center_full_qmi_largest_eigenvalue": _json_number(
+            center_full_qmi_score
+        ),
         "generator_endpoint_percentile": generator_percentile,
         "generator_affine_hull_relative_residual": generator_affine_residual,
         "score_tau_effective_saved": _json_number(stored_tau),
@@ -796,6 +826,8 @@ def verify_solution(
         bar_lambda_tol=bar_lambda_tol,
         max_iterations=max_iterations,
     )
+    if not search["found"]:
+        raise RuntimeError(str(search["status"]))
     bar_lambda = float(search["bar_lambda"])
 
     all_indices, selected_residuals, selected_scaled = vertex_residuals(

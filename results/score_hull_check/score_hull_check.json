@@ -4,11 +4,6 @@
       "scenario": "Standard",
       "N": 1024,
       "N_anchor": 103,
-      "bar_lambda_anchor": 0.9620079718530177,
-      "N_score": 104,
-      "N_positive_score_selected": 1,
-      "worst_selected_set_BRL_residual": -1.0000008040110586e-06,
-      "worst_selected_set_BRL_scaled_residual": -5.266156629137853e-08,
       "strict_tolerance": 1e-06,
       "worst_full_library_surrogate_residual": 3.714055660160409e-05,
       "worst_full_library_surrogate_scaled_residual": 1.955888420938033e-06,
@@ -17,17 +12,18 @@
       "lambda_min_Q": 0.0011222777879731933,
       "condition_number_Q": 672.7231327859831,
       "relative_Y_minus_KQ": 4.3336711549424744e-18,
-      "lambda_max_P": 891.0449896775842
+      "lambda_max_P": 891.0449896775842,
+      "diagnostic_status": "strict score-bounded residual found",
+      "bar_lambda_anchor": 0.9620079718530177,
+      "N_score": 104,
+      "N_positive_score_selected": 1,
+      "worst_selected_set_BRL_residual": -1.0000008040110586e-06,
+      "worst_selected_set_BRL_scaled_residual": -5.266156629137853e-08
     },
     {
       "scenario": "Expanded",
       "N": 1024,
       "N_anchor": 103,
-      "bar_lambda_anchor": 0.9673257395625112,
-      "N_score": 128,
-      "N_positive_score_selected": 25,
-      "worst_selected_set_BRL_residual": -1.0000004610876313e-06,
-      "worst_selected_set_BRL_scaled_residual": -4.336797322984029e-08,
       "strict_tolerance": 1e-06,
       "worst_full_library_surrogate_residual": 4.935305439619005e-05,
       "worst_full_library_surrogate_scaled_residual": 2.1403529484302964e-06,
@@ -36,7 +32,13 @@
       "lambda_min_Q": 0.0010829463941135038,
       "condition_number_Q": 496.5547522296668,
       "relative_Y_minus_KQ": 6.0835416453127145e-18,
-      "lambda_max_P": 923.4067405696703
+      "lambda_max_P": 923.4067405696703,
+      "diagnostic_status": "strict score-bounded residual found",
+      "bar_lambda_anchor": 0.9673257395625112,
+      "N_score": 128,
+      "N_positive_score_selected": 25,
+      "worst_selected_set_BRL_residual": -1.0000004610876313e-06,
+      "worst_selected_set_BRL_scaled_residual": -4.336797322984029e-08
     }
   ]
 }

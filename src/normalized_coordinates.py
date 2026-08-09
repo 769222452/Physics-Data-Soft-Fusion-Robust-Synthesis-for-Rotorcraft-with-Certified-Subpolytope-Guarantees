@@ -455,6 +455,10 @@ def build_fusion_diagnostics_payload(
             scales.residual_std, dtype=float
         ),
     }
+    if all("s_full_qmi" in vertex for vertex in vertices):
+        payload["full_qmi_raw_scores"] = np.asarray(
+            [float(vertex["s_full_qmi"]) for vertex in vertices], dtype=float
+        )
 
     for key in (
         "X_t", "X_tp1", "U_t", "Z_t", "Dbar_t", "X_phys",
