@@ -66,7 +66,7 @@ class ReleasedArtifactTests(unittest.TestCase):
         )
         prefixes = {
             "Proposed": "Proposed_",
-            "Baseline B": "BaselineB_NoRelax__",
+            "Matched-active-set unrelaxed ablation": "BaselineB_NoRelax__",
             "Nominal LQR": "NominalLQR_",
         }
         for table_name, raw_name in cases:

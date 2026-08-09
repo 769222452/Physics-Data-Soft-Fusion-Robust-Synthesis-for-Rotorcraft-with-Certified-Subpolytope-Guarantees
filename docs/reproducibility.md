@@ -1,41 +1,39 @@
 # Reproducibility Notes
 
-This document summarizes how to reproduce the numerical studies in the
-manuscript. The repository contains source scripts, selected reference logs,
-curated figures, and curated tables.
+This document records the numerical workflow associated with the manuscript.
+The repository includes source code, reference logs, saved machine-readable
+outputs, manuscript figures, and numerical tables.
 
 ## Environment
 
-Use Python 3.8 or newer. Install the package requirements from the repository
-root:
+Use Python 3.8 or newer and install the requirements from the repository root:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-The SDP steps require MOSEK and a valid license. Configure the license before
-running the scripts:
+The SDP stages require MOSEK and a valid license. Saved-result processing uses
+NumPy and SciPy only. The exact campaign environment and solver settings are
+listed in `rerun_environment.txt`.
 
-```bash
-export MOSEKLM_LICENSE_FILE=/path/to/mosek.lic
-```
+## Script and Output Map
 
-On Windows PowerShell:
-
-```powershell
-$env:MOSEKLM_LICENSE_FILE = "C:\path\to\mosek.lic"
-```
-
-## Script Map
-
-| Script | Purpose | Curated outputs |
+| Script | Purpose | Released output |
 | --- | --- | --- |
-| `src/time_domain_standard.py` | Standard time-domain tracking study | `results/figures/time_domain_standard/`, `results/tables/time_domain_standard_metrics.csv` |
-| `src/time_domain_expanded.py` | Expanded time-domain tracking study | `results/figures/time_domain_expanded/`, `results/tables/time_domain_expanded_metrics.csv` |
-| `src/fusion_ablation.py` | Monte Carlo soft fusion ablation | `results/figures/monte_carlo/` |
-| `src/vertex_selection_ablation.py` | Vertex-selection ablation | `results/tables/vertex_selection_table8_summary.csv`, `results/tables/vertex_selection_ablation_by_seed.csv` |
+| `src/time_domain_standard.py` | Standard-range tracking study | `results/figures/time_domain_standard/`, `results/tables/time_domain_standard_metrics.csv` |
+| `src/time_domain_expanded.py` | Expanded-range tracking study | `results/figures/time_domain_expanded/`, `results/tables/time_domain_expanded_metrics.csv` |
+| `src/fusion_ablation.py` | Monte Carlo fusion ablation | `results/figures/monte_carlo/`, `results/tables/fusion_ablation_monte_carlo_summary.csv` |
+| `src/vertex_selection_ablation.py` | Vertex-selection ablation | `results/tables/vertex_selection_*` |
+| `src/posthoc_score_hull_check.py` | Saved score-bounded certificate check | `results/score_hull_check/` |
+| `src/postprocess_generator_qmi.py` | Saved batch-generator raw-QMI evaluation | `results/generator_qmi/` |
+| `src/postprocess_monte_carlo_statistics.py` | Statistics from paired saved trials | `results/posthoc_statistics/` |
+| `src/plot_saved_time_domain_figures.py` | Figure export from saved trajectories | `results/figures/time_domain_*` |
 
-## Running the Studies
+`src/posthoc_certificate_verification.py` contains the fixed-solution matrix
+evaluation routines used by `posthoc_score_hull_check.py` and exposes a
+standalone command-line interface for scenario-specific checks.
+
+## Full Numerical Campaign
 
 From the repository root, run:
 
@@ -46,25 +44,41 @@ python src/fusion_ablation.py
 python src/vertex_selection_ablation.py
 ```
 
-The scripts create local output directories under `results_revised/` at
-runtime:
+Runtime outputs are written below `results_revised/`:
 
-| Script | Runtime output directory |
+| Script | Runtime directory |
 | --- | --- |
 | `src/time_domain_standard.py` | `results_revised/time-new/` |
 | `src/time_domain_expanded.py` | `results_revised/time-new-ex/` |
 | `src/fusion_ablation.py` | `results_revised/monclo_Result/` |
 | `src/vertex_selection_ablation.py` | `results_revised/monclo_pointsResult/` |
 
-Shared raw arrays and solver records are written to
-`results_revised/caches/`, while processed CSV and LaTeX table fragments are
-written to `results_revised/tables/`. Delete `results_revised/` before a clean
-campaign; the scripts do not read the earlier curated `results/` files.
+Raw arrays and solver records are written to `results_revised/caches/`, while
+processed table files are written to `results_revised/tables/`. The released
+`results/` directory is not used as an input by the full campaign.
+
+## Saved-Result Checks
+
+The saved-result tools do not regenerate the offline batch, synthesize a
+controller, run SFPS+ICE, execute a time-domain simulation, or repeat Monte
+Carlo trials. Their exact commands are listed in the main README.
+
+The score-hull check reports positive definiteness of the saved `Q`, the
+`Y-KQ` consistency residual, the full-library score-weighted surrogate
+residual, the common coefficient, and the worst standard-LMI residual over the
+selected score-bounded vertex set. Residual matrices are symmetrized before
+eigenvalue evaluation. Numerical tolerances classify floating-point output;
+they do not replace the exact semidefinite assumptions in the theoretical
+results.
+
+The Monte Carlo post-processor computes Wilson confidence intervals, an exact
+McNemar comparison for paired success outcomes, and a seeded paired bootstrap
+for trials in which both compared controllers succeed.
 
 ## Coordinate Scaling
 
-The simulator propagates the physical model. All synthesis and scoring norms
-use the fixed diagonal scales defined in `src/normalized_coordinates.py`:
+The simulator propagates the physical model. Synthesis and scoring use the
+fixed diagonal scales defined in `src/normalized_coordinates.py`:
 
 | Quantity | Diagonal scales |
 | --- | --- |
@@ -75,57 +89,52 @@ use the fixed diagonal scales defined in `src/normalized_coordinates.py`:
 | State-record residual cap | `3e-3` on each physical state channel |
 | State-record residual standard deviation | `5e-4` on each channel |
 
-These scales are prescribed before data generation and are not estimated from
-the batch used for consistency scoring.
+The first three disturbance scales have units of `m/s^2`; the final three
+have units of `rad/s^2`. The six normalized disturbance components are jointly
+projected onto one Euclidean unit ball. These scales are fixed before data
+generation and are not estimated from the scoring batch.
 
-Existing curated outputs are retained under `results/` so that manuscript
-figures and tables can be checked without rerunning all SDP computations. Full
-SDP and Monte Carlo reruns can take substantial time depending on hardware and
-MOSEK configuration.
+## Raw Files
 
-The `results/raw/` directory contains the NPZ artifacts from the reported clean
-rerun, including batch data, vertices, processed scores, controller variables,
-solver diagnostics, trajectories, Monte Carlo seeds, and per-seed ablation
-outcomes. Load these files with `numpy.load(..., allow_pickle=False)`.
+The files under `results/raw/` contain the reported batches, adopted vertices,
+scores, controller variables, solver diagnostics, trajectories, Monte Carlo
+seeds, and per-seed ablation outcomes. They can be read with:
 
-The archived data-fusion NPZ files retain the legacy scalar field
-`score_n_consistent`, which equals the number of zero processed scores. For an
-unambiguous audit, compute the raw count as `sum(raw_scores <= 0)` and the
-processed count as `sum(processed_scores == 0)`. Current source runs also emit
-the explicit fields `score_n_raw_consistent` and `score_n_zero_processed`.
+```python
+import numpy as np
 
-## Random Seeds and Numerical Solvers
+data = np.load("results/raw/stage3_time_domain_results.npz",
+               allow_pickle=False)
+```
 
-The base random seed is `26`; derived seeds are stored with the generated raw
-arrays. The numerical full-vertex thresholds are `1e-4` for Surrogate pass and
-`2e-4` for Near surrogate. These are implementation tolerances only; the
-theoretical LMIs are exact. Small solver-dependent differences can occur across
-MOSEK versions, BLAS/LAPACK backends, thread schedules, or operating systems.
-The reference logs in `logs/` record solver parameters, status, objectives,
-and numerical residuals. Repository and license paths in these logs are
-sanitized placeholders; all numerical lines are unchanged from the clean run.
+The archived data-fusion files retain the legacy field
+`score_n_consistent`, which stores the number of zero processed scores. The
+unambiguous raw and processed counts are `sum(raw_scores <= 0)` and
+`sum(processed_scores == 0)`. Current full runs also emit
+`score_n_raw_consistent` and `score_n_zero_processed`.
 
-### MOSEK acceptance and matrix extraction
+## Seeds and Solver Acceptance
+
+The base random seed is `26`. Derived seeds are stored in the raw files. The
+fusion ablation contains 2000 paired trials. The vertex-selection study uses
+five synthesis seeds and 500 Monte Carlo plants per run.
 
 All experiment scripts use `src/mosek_helpers.py`. A returned solution is
-accepted only when the problem status is `PrimalAndDualFeasible` and both the
-primal and dual solution statuses are `Optimal` or `Feasible`. The latter
-category permits a numerically feasible time-limited solution, but every
-accepted controller must still pass the separate a posteriori LMI residual
-checks. Unknown, infeasible, certificate, ill-posed, and undefined statuses are
-rejected before decision-variable levels are read.
+accepted only when the problem status is `PrimalAndDualFeasible` and the
+primal and dual solution statuses are `Optimal` or `Feasible`. Every accepted
+controller is then subjected to the separate numerical LMI residual checks.
+Other statuses are rejected before decision-variable levels are read.
 
 Fusion matrix levels are reconstructed in fixed row-major (`order="C"`) order.
-This convention is verified against indexed Fusion entries using a
-non-symmetric rectangular test matrix; no matrix order is inferred from the
-symmetry of `Q`.
+The convention is tested with a non-symmetric rectangular matrix.
 
-The archived clean-rerun logs use the earlier message
-`SOFT-CONSISTENCY mode` for the quantile fallback. This label means only that
-the processed-score threshold fallback was activated; it does not assert raw
-QMI consistency. New runs print `PROCESSED-SCORE FALLBACK`.
+Numerical full-vertex classification uses `1e-4` for Surrogate pass and
+`2e-4` for Near surrogate. Small differences can occur across MOSEK versions,
+BLAS/LAPACK backends, thread schedules, or operating systems. Reference logs
+record the solver settings, statuses, objectives, and numerical residuals.
 
-## Scope of the Released Data
+## Data Scope
 
-The released artifacts are simulation data and generated numerical outputs.
-No physical flight-test or hardware experimental data are included.
+All released data and outputs are generated by simulation. The repository
+contains no physical flight-test records, hardware measurements, or personally
+identifiable data.

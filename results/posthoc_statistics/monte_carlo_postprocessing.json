@@ -1,0 +1,88 @@
+{
+  "monte_carlo_rerun": false,
+  "paired_success_comparison": {
+    "baseline_method": "Matched-active-set unrelaxed ablation",
+    "baseline_only_successes": 324,
+    "discordant_pairs": 324,
+    "exact_mcnemar_p_value": 5.852095443365248e-98,
+    "proposed_method": "Proposed",
+    "proposed_only_successes": 0
+  },
+  "paired_successful_trial_rmse": {
+    "bootstrap_95_lower": -0.03694361770332766,
+    "bootstrap_95_upper": -0.03573776702925097,
+    "bootstrap_replications": 20000,
+    "bootstrap_seed": 20260726,
+    "conditioning": "Only trials successful for both controllers are included; the result is survivor-conditioned.",
+    "difference_definition": "Proposed RMSE minus baseline RMSE",
+    "mean_difference": -0.0363398695902954,
+    "median_difference": -0.03530794544152466,
+    "paired_trial_count": 1676
+  },
+  "source_file": "results/raw/fusion_ablation_monte_carlo_raw.npz",
+  "success_intervals": [
+    {
+      "method": "Nominal LQR",
+      "method_key": "NominalLQR",
+      "success_rate": 1.0,
+      "successes": 2000,
+      "trials": 2000,
+      "wilson_95_lower": 0.9980829527187469,
+      "wilson_95_upper": 0.9999999999999998
+    },
+    {
+      "method": "Prior-only robust baseline",
+      "method_key": "P0_PriorOnly",
+      "success_rate": 1.0,
+      "successes": 2000,
+      "trials": 2000,
+      "wilson_95_lower": 0.9980829527187469,
+      "wilson_95_upper": 0.9999999999999998
+    },
+    {
+      "method": "Matched-active-set unrelaxed ablation",
+      "method_key": "P1_NoRelax",
+      "success_rate": 1.0,
+      "successes": 2000,
+      "trials": 2000,
+      "wilson_95_lower": 0.9980829527187469,
+      "wilson_95_upper": 0.9999999999999998
+    },
+    {
+      "method": "Thresholded selection",
+      "method_key": "F1a_HardStrict",
+      "success_rate": 0.8295,
+      "successes": 1659,
+      "trials": 2000,
+      "wilson_95_lower": 0.8123902711105082,
+      "wilson_95_upper": 0.8453463947311461
+    },
+    {
+      "method": "Top-budget selection",
+      "method_key": "F1b_HardBudget",
+      "success_rate": 0.798,
+      "successes": 1596,
+      "trials": 2000,
+      "wilson_95_lower": 0.7798404648946978,
+      "wilson_95_upper": 0.8150169749256754
+    },
+    {
+      "method": "Data-only LQR",
+      "method_key": "S0_DataOnly",
+      "success_rate": 1.0,
+      "successes": 2000,
+      "trials": 2000,
+      "wilson_95_lower": 0.9980829527187469,
+      "wilson_95_upper": 0.9999999999999998
+    },
+    {
+      "method": "Proposed",
+      "method_key": "Proposed",
+      "success_rate": 0.838,
+      "successes": 1676,
+      "trials": 2000,
+      "wilson_95_lower": 0.8212067437991746,
+      "wilson_95_upper": 0.8534973322386983
+    }
+  ]
+}

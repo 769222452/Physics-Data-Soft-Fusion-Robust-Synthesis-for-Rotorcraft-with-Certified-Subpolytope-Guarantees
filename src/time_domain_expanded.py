@@ -5,11 +5,11 @@ import sys
 import csv
 import itertools
 import glob
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Sequence, Callable, Any
-from scipy.optimize import linprog
 
 import numpy as np
+from score_processing import nonnegative_quantile_threshold
 from numpy.linalg import eigvalsh
 import scipy.linalg as la
 
@@ -39,7 +39,6 @@ from normalized_coordinates import (
     project_disturbance_physical,
     project_increment_physical,
     sample_capped_physical_residual,
-    state_to_normalized,
     verify_realized_record_residual,
 )
 from mosek_helpers import (
@@ -304,25 +303,6 @@ def build_physical_matrices(p: Dict[str, float], Ts: float, g: float) -> Tuple[n
     return build_physical_augmented_matrices(p, Ts, g)
 
 
-# =========================================================
-# Single source of truth for the 8 geometric pairs shown in the paper.
-# File names are `Exp1_Geometry_{x}_vs_{y}.pdf` and must match the LaTeX
-# includegraphics paths in cas-sc-template.tex.
-# =========================================================
-FIG4_PAIRS: Tuple[Tuple[str, str], ...] = (
-    ("Jx", "Jy"),
-    ("Jx", "kp"),
-    ("Jy", "kq"),
-    ("Jz", "kr"),
-    ("sigma_t", "kz"),
-    ("kx", "ky"),
-    ("kp", "kq"),
-    ("ky", "kr"),
-)
-
-
-
-
 def build_performance_matrices(syn: SynthesisParams) -> Tuple[np.ndarray, np.ndarray]:
     """Performance map for normalized state and increment coordinates."""
     return build_normalized_performance_matrices(syn.Qx_perf, syn.Rd_perf, DEFAULT_SCALES)
@@ -488,9 +468,10 @@ def build_disturbance_psd_bound(
         safety_factor: float = 1.05,
         seed: int = 0,
 ) -> Tuple[np.ndarray, Dict[str, float]]:
-    """PSD upper bound at every adopted vertex and the batch generator.
+    """Endpoint-exact box-wide PSD bound for disturbance injection.
 
-    Random interior samples are evaluated separately as a numerical sanity check only."""
+    The batch generator and random interior samples are numerical diagnostics
+    and do not determine the bound."""
     keys = list(bounds.__dataclass_fields__.keys())
     n_vert = 2 ** len(keys)
     rng = np.random.default_rng(seed)
@@ -518,8 +499,8 @@ def build_disturbance_psd_bound(
         _, _, S_generator = build_vertex_matrices(batch_generator, syn.Ts, syn.g)
         generator_max_eig = float(la.eigvalsh(S_generator @ S_generator.T)[-1])
 
-    old_alpha = float(safety_factor) * vertex_max_eig
-    alpha = float(safety_factor) * max(vertex_max_eig, generator_max_eig)
+    alpha = float(safety_factor) * vertex_max_eig
+    old_alpha = alpha
     W_c = alpha * np.eye(16)
 
     min_gap_v, n_viol_v = float("inf"), 0
@@ -545,7 +526,10 @@ def build_disturbance_psd_bound(
         alpha=alpha, vertex_max_eig=vertex_max_eig, interior_max_eig=interior_max_eig,
         generator_max_eig=generator_max_eig, generator_psd_gap=generator_gap,
         old_vertex_only_alpha=old_alpha,
-        generator_changed_bound=bool(generator_max_eig > vertex_max_eig),
+        generator_changed_bound=False,
+        generator_exceeds_vertex_max=bool(
+            generator_max_eig > vertex_max_eig + 1e-12
+        ),
         safety_factor=float(safety_factor),
         min_psd_gap_vertex=min_gap_v, n_violate_vertex=n_viol_v,
         min_psd_gap_interior=min_gap_i, n_violate_interior=n_viol_i,
@@ -681,38 +665,6 @@ def enumerate_vertices(bounds: ParamBounds) -> List[Dict[str, float]]:
     return vertices
 
 
-def farthest_point_select_vertices(
-        all_vertices: List[Dict[str, object]],
-        K_budget: int,
-        bounds: ParamBounds,
-        seed: int = 0,
-) -> List[int]:
-    """
-    """
-    keys = ["sigma_t", "Jx", "Jy", "Jz", "kx", "ky", "kz", "kp", "kq", "kr"]
-    scales = []
-    for k in keys:
-        lo, hi = getattr(bounds, k)
-        scales.append((lo, hi - lo if hi > lo else 1.0))
-
-    N = len(all_vertices)
-    coords = np.zeros((N, len(keys)))
-    for i, v in enumerate(all_vertices):
-        for j, k in enumerate(keys):
-            coords[i, j] = (float(v["p"][k]) - scales[j][0]) / scales[j][1]
-
-    rng = np.random.default_rng(seed)
-    selected = [rng.integers(N)]
-    min_dist = np.full(N, np.inf)
-
-    for _ in range(K_budget - 1):
-        last = coords[selected[-1]]
-        d = np.sum((coords - last) ** 2, axis=1)
-        min_dist = np.minimum(min_dist, d)
-        min_dist[selected] = -1.0
-        selected.append(int(np.argmax(min_dist)))
-
-    return sorted(selected)
 
 
 # All manuscript scripts use mode="lambda_max". Alternative score modes are
@@ -767,39 +719,6 @@ def build_all_vertices_and_scores(
         s_i = compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode)
         out.append(dict(A=A, B=B, S=S_c, C=Cc, D=Dc, Delta=Delta, s=s_i, p=p))
     return out
-def selfcheck_print_param_sraw(
-        p: Dict[str, float],
-        syn: SynthesisParams,
-        Psi_data: np.ndarray,
-        *,
-        label: str = "p_true",
-        score_mode: str = "lambda_max",
-        compare_scores: Optional[np.ndarray] = None,
-) -> float:
-    """
-    """
-    Ts, g = syn.Ts, syn.g
-    A, B, _ = build_vertex_matrices(p, Ts, g)
-    Cc, Dc = build_performance_matrices(syn)
-    Delta = np.block([[A, B],
-                      [Cc, Dc]])
-
-    s_raw = compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode)
-
-    msg = f"[SelfCheck] {label}: s_raw={s_raw:.6e} (mode={score_mode})"
-
-    if compare_scores is not None and len(compare_scores) > 0:
-        cs = np.asarray(compare_scores, dtype=float)
-        cs_min = float(np.min(cs))
-        cs_max = float(np.max(cs))
-        rank_le = int(np.sum(cs <= s_raw))
-        pct = 100.0 * rank_le / float(len(cs))
-        msg += (f" | among pool: min={cs_min:.6e}, max={cs_max:.6e}, "
-                f"percentile={pct:.2f}% (<=count {rank_le}/{len(cs)}), "
-                f"gap_to_min={s_raw - cs_min:.3e}")
-
-    print(msg)
-    return float(s_raw)
 
 
 def compute_si_from_vi(
@@ -815,6 +734,8 @@ def compute_si_from_vi(
         hard_ratio_min: float = 0.01,
         sigma_degenerate_thr: float = 1e-10,
 ) -> Tuple[List[Dict[str, object]], Dict[str, Any]]:
+    # hard_ratio_min is the implementation name of the manuscript fallback
+    # trigger r_trig; it is not a guaranteed raw-consistency fraction.
     raw_s = np.array([float(v["s"]) for v in vertices], dtype=float)
     n = len(raw_s)
     n_raw_consistent = int(np.sum(raw_s <= tau))
@@ -826,14 +747,14 @@ def compute_si_from_vi(
     tau_effective = tau
 
     if soft_fallback and hard_ratio < hard_ratio_min:
-        tau_effective = float(np.quantile(raw_s, rho))
+        tau_effective = nonnegative_quantile_threshold(raw_s, rho)
         hard_consistent_mask = raw_s <= tau_effective
         hard_ratio = float(np.mean(hard_consistent_mask))
         soft_mode = True
         print(f"  [ScorePipeline] PROCESSED-SCORE FALLBACK: "
               f"hard_ratio(tau=0)={float(np.mean(raw_s <= tau)):.4f} < {hard_ratio_min}")
         print(f"  [ScorePipeline]   tau_effective={tau_effective:.6e} "
-              f"(rho={rho} quantile of raw scores)")
+              f"(max of zero and the rho={rho} raw-score quantile)")
 
     # --- Step 1: Hard consistency thresholding ---
     p = np.maximum(0.0, raw_s - tau_effective)
@@ -910,35 +831,6 @@ def compute_si_from_vi(
     return out, diag
 
 
-def sample_consistent_models(
-        bounds: ParamBounds,
-        syn: SynthesisParams,
-        Psi_data: np.ndarray,
-        *,
-        tau: float,
-        score_mode: str = "lambda_max",
-        n_samples: int = 8000,
-        seed: int = 0,
-) -> List[Dict[str, object]]:
-    Ts, g = syn.Ts, syn.g
-    Cc, Dc = build_performance_matrices(syn)
-    keys = list(bounds.__dataclass_fields__.keys())
-    rng = np.random.default_rng(int(seed))
-
-    out = []
-    for _ in range(int(n_samples)):
-        p = {}
-        for k in keys:
-            lo, hi = getattr(bounds, k)
-            p[k] = float(rng.uniform(lo, hi))
-
-        A, B, S_c = build_vertex_matrices(p, Ts, g)
-        Delta = np.block([[A, B],
-                          [Cc, Dc]])
-        s_raw = float(compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode))
-        if s_raw <= float(tau):
-            out.append(dict(A=A, B=B, S=S_c, C=Cc, D=Dc, Delta=Delta, s=s_raw, p=p))
-    return out
 
 # =========================================================
 # Plotting utilities
@@ -951,168 +843,12 @@ def _param_vec_from_bounds(p: Dict[str, float], bounds: ParamBounds) -> np.ndarr
         den = (hi - lo) if (hi - lo) > 1e-12 else 1.0
         v.append((float(p[k]) - lo) / den)
     return np.array(v, dtype=float)
-def _delta_flat(v: Dict[str, object]) -> np.ndarray:
-    """Flatten Delta to 1D vector."""
-    return np.asarray(v["Delta"], dtype=float).reshape(-1)
 
 
-def _affine_whiten_from_columns(V: np.ndarray, eps: float = 1e-12) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    """
-    mu = np.mean(V, axis=1, keepdims=True)
-    sig = np.std(V, axis=1, keepdims=True)
-    sig = np.where(sig < eps, 1.0, sig)
-    Vw = (V - mu) / sig
-    return Vw, mu, sig
 
 
-def select_vertices_farthest_delta(
-        vertices: List[Dict[str, object]],
-        K: int,
-        *,
-        initial_index: int = 0,
-) -> List[Dict[str, object]]:
-    """
-    """
-    if len(vertices) == 0:
-        return []
-    if K >= len(vertices):
-        return list(vertices)
 
-    # X: (n, m)
-    X = np.vstack([_delta_flat(v) for v in vertices])  # (n, m)
-    # whiten per-coordinate (affine invertible)
-    mu = np.mean(X, axis=0, keepdims=True)
-    sig = np.std(X, axis=0, keepdims=True)
-    sig = np.where(sig < 1e-12, 1.0, sig)
-    Xw = (X - mu) / sig
 
-    n = Xw.shape[0]
-    initial_index = int(np.clip(initial_index, 0, n - 1))
-
-    selected = [initial_index]
-    dist2 = np.sum((Xw - Xw[initial_index]) ** 2, axis=1)
-
-    for _ in range(1, K):
-        j = int(np.argmax(dist2))
-        selected.append(j)
-        dist2 = np.minimum(dist2, np.sum((Xw - Xw[j]) ** 2, axis=1))
-
-    out, seen = [], set()
-    for i in selected:
-        if i not in seen:
-            out.append(vertices[i])
-            seen.add(i)
-    return out
-
-def select_vertices_support_delta(
-        vertices: List[Dict[str, object]],
-        K: int,
-        *,
-        n_dirs: int = 300,
-        seed: int = 0,
-        initial_index: int = 0,
-) -> List[Dict[str, object]]:
-    """
-    """
-    if len(vertices) == 0:
-        return []
-    if K >= len(vertices):
-        return list(vertices)
-
-    # X: (n, m)
-    X = np.vstack([_delta_flat(v) for v in vertices])  # (n, m)
-
-    mu = np.mean(X, axis=0, keepdims=True)
-    sig = np.std(X, axis=0, keepdims=True)
-    sig = np.where(sig < 1e-12, 1.0, sig)
-    Xw = (X - mu) / sig
-
-    rng = np.random.default_rng(int(seed))
-    m = Xw.shape[1]
-    dirs = rng.standard_normal((int(n_dirs), m))
-    dirs = dirs / (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-12)
-
-    idxs = set()
-    for d in dirs:
-        proj = Xw @ d
-        idxs.add(int(np.argmax(proj)))
-        idxs.add(int(np.argmin(proj)))
-        if len(idxs) >= 5 * K:
-            break
-
-    cand = [vertices[i] for i in sorted(idxs)]
-
-    if len(cand) > K:
-        cand = select_vertices_farthest_delta(cand, K=K, initial_index=int(initial_index))
-    elif len(cand) < K:
-        rest = [vertices[i] for i in range(len(vertices)) if i not in idxs]
-        if len(rest) > 0:
-            extra = select_vertices_farthest_delta(rest, K=min(K - len(cand), len(rest)), initial_index=0)
-            cand = cand + extra
-
-    return cand[:K]
-
-def select_vertices_stratified_farthest_delta(
-        vertices: List[Dict[str, object]],
-        K: int,
-        *,
-        ratios: Tuple[float, float, float] = (0.4, 0.2, 0.4),
-        seed: int = 0,
-) -> List[Dict[str, object]]:
-    """
-    """
-    if len(vertices) == 0:
-        return []
-    if K >= len(vertices):
-        return list(vertices)
-
-    ratios = np.array(ratios, dtype=float)
-    if ratios.size != 3 or np.any(ratios < 0) or float(np.sum(ratios)) <= 1e-12:
-        ratios = np.array([0.4, 0.2, 0.4], dtype=float)
-    ratios = ratios / float(np.sum(ratios))
-
-    s = np.array([float(v["s"]) for v in vertices], dtype=float)
-    order = np.argsort(s, kind="stable")
-    verts_sorted = [vertices[i] for i in order]
-    n = len(verts_sorted)
-
-    cut1 = int(np.floor(n / 3))
-    cut2 = int(np.floor(2 * n / 3))
-    low = verts_sorted[:max(1, cut1)]
-    mid = verts_sorted[max(1, cut1):max(cut2, cut1 + 1)]
-    high = verts_sorted[max(cut2, cut1 + 1):]
-    k_low, k_mid, k_high = allocate_stratified_budget(
-        K, ratios, (len(low), len(mid), len(high))
-    )
-
-    rng = np.random.default_rng(int(seed))
-
-    sel_low = []
-    if k_low > 0 and len(low) > 0:
-        sel_low = select_vertices_farthest_delta(low, K=min(k_low, len(low)), initial_index=0)
-
-    sel_mid = []
-    if k_mid > 0 and len(mid) > 0:
-        init = int(rng.integers(0, len(mid)))
-        sel_mid = select_vertices_farthest_delta(mid, K=min(k_mid, len(mid)), initial_index=init)
-
-    sel_high = []
-    if k_high > 0 and len(high) > 0:
-        init = int(rng.integers(0, len(high)))
-        sel_high = select_vertices_farthest_delta(high, K=min(k_high, len(high)), initial_index=init)
-
-    out = sel_low + sel_mid + sel_high
-
-    if len(out) < K:
-        seen = {id(v) for v in out}
-        rest = [v for v in verts_sorted if id(v) not in seen]
-        if len(rest) > 0:
-            need = K - len(out)
-            extra = select_vertices_farthest_delta(rest, K=min(need, len(rest)), initial_index=0)
-            out.extend(extra)
-
-    return out[:K]
 
 
 def select_vertices_farthest(
@@ -2196,8 +1932,8 @@ def plot_stage3_A_C_publication(
     out_dir = syn.fig_out_dir
 
     display_name = {
-        "Proposed": "Proposed (Soft Fusion)",
-        "BaselineB(NoRelax)": "Baseline B (No Relaxation)",
+        "Proposed": "Proposed",
+        "BaselineB(NoRelax)": "Matched-active ablation",
         "NominalLQR": "Nominal LQR",
     }
     linestyle = {
@@ -2302,12 +2038,12 @@ def plot_stage3_A_C_publication(
         fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
         _setup_axes(ax)
         _add_gust_shading(ax, gusts)
-        ax.plot(t[:N], delta, linewidth=1.2, label="Proposed $-$ Baseline B")
+        ax.plot(t[:N], delta, linewidth=1.2, label="Proposed $-$ matched-active ablation")
         ax.axhline(0.0, linestyle=":", linewidth=1.0, color="black")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel(r"$\Delta \|e_p\|_2$ (m)")
         if syn.fig_show_titles:
-            ax.set_title("Error-norm difference (Proposed minus Baseline B)")
+            ax.set_title("Error-norm difference (Proposed minus matched-active ablation)")
         ax.legend(frameon=False, loc="best")
         save_pub_figure(fig, out_dir, "FigS3_ErrNorm_Delta_PropMinusBaseA", formats=syn.fig_formats,
                         dpi_png=syn.fig_dpi_png, transparent=syn.fig_transparent)
@@ -2319,11 +2055,12 @@ def plot_stage3_A_C_publication(
     for name, sim in sims_dist.items():
         du = np.linalg.norm(increment_to_normalized(sim["u_c"]), axis=0)
         ax.plot(t[:-1], du, linestyle=linestyle.get(name, "-"), label=display_name.get(name, name))
-    ax.axhline(1.0, linestyle=":", linewidth=1.0, color="black", label="normalized bound")
+    ax.axhline(1.0, linestyle=":", linewidth=1.0, color="black",
+               label="implemented unit increment limit")
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel(r"$\|\bar u_c\|_2$")
+    ax.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
     if syn.fig_show_titles:
-        ax.set_title("Increment command norm (rate constraint activity)")
+        ax.set_title("Normalized applied control increment")
     ax.legend(frameon=False, loc="best", ncols=1)
     save_pub_figure(fig, out_dir, "FigS3_DuNorm", formats=syn.fig_formats, dpi_png=syn.fig_dpi_png,
                     transparent=syn.fig_transparent)
@@ -2419,7 +2156,7 @@ def plot_stage3_story_figure(
     ORDER = ["Proposed", "BaselineB(NoRelax)", "NominalLQR"]
     PRETTY = {
         "Proposed": "Proposed",
-        "BaselineB(NoRelax)": "Baseline B (No Relax)",
+        "BaselineB(NoRelax)": "Matched-active ablation",
         "NominalLQR": "Nominal LQR",
     }
     LS = {
@@ -2474,7 +2211,7 @@ def plot_stage3_story_figure(
         ax_du.plot(t[:-1], du, linestyle=LS.get(name, "-"),
                    label=PRETTY.get(name, name))
     ax_du.axhline(1.0, linestyle=":", linewidth=1.0, color="black",
-                  label="normalized bound")
+                  label="implemented unit increment limit")
     ax_du.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
     ax_du.legend(frameon=False, loc="best", ncols=2, fontsize=6)
 
@@ -2486,7 +2223,8 @@ def plot_stage3_story_figure(
         Nd = min(eP.size, eB.size)
         delta_e = eP[:Nd] - eB[:Nd]
         _add_gust_shading(ax_delta, gusts)
-        ax_delta.plot(t[:Nd], delta_e, linewidth=1.2, label=r"Proposed $-$ Baseline B")
+        ax_delta.plot(t[:Nd], delta_e, linewidth=1.2,
+                      label=r"Proposed $-$ matched-active ablation")
         ax_delta.axhline(0.0, linestyle=":", linewidth=1.0, color="black")
         ax_delta.set_ylabel(r"$\Delta \|e_p\|_2$ (m)")
         ax_delta.legend(frameon=False, loc="best", fontsize=6)
@@ -2520,7 +2258,7 @@ def export_exp1_metrics_table(
     if pretty_names is None:
         pretty_names = {
             "Proposed": "Proposed",
-            "BaselineB(NoRelax)": "Baseline B",
+            "BaselineB(NoRelax)": "Matched-active ablation",
             "NominalLQR": "Nominal LQR",
         }
 
@@ -2591,270 +2329,11 @@ def export_exp1_metrics_table(
         f.write("\\end{tabular}\n")
 
 
-def plot_gamma_comparison_nature(
-        gamma_baseB: float,
-        gamma_prop: float,
-        out_dir: str,
-        syn: SynthesisParams,
-        stem: str = "FigS3_Gamma_Comparison",
-) -> None:
-    sizes = set_publication_style(context=syn.fig_context, column="single")
-    fig_w = sizes["single"][0] * 0.85
-    fig_h = fig_w * 1.2
-
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), constrained_layout=True)
-
-    values = [gamma_baseB, gamma_prop]
-    labels = ["Baseline B\n(No Relax.)", "Proposed\n(Fusion)"]
-    colors = ["#0072B2", "#D55E00"]
-
-    bars = ax.bar(labels, values, color=colors, width=0.45,
-                  edgecolor="black", linewidth=0.8, zorder=3)
-
-    for bar, val in zip(bars, values):
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width() / 2.0, height + 0.02 * max(values),
-                f"{val:.3f}",
-                ha='center', va='bottom', fontsize=7, fontweight='bold', color="black")
-
-    xB = bars[0].get_x() + bars[0].get_width() / 2.0
-    xP = bars[1].get_x() + bars[1].get_width() / 2.0
-    y_max = max(values)
-    y_line = y_max * 1.15
-    y_text = y_line + 0.02 * y_max
-
-    ax.plot([xB, xB, xP, xP], [y_max * 1.05, y_line, y_line, gamma_prop * 1.05 + (y_max - gamma_prop)],
-            color="black", linewidth=0.6)
-
-    imp = (gamma_baseB - gamma_prop) / gamma_baseB * 100
-    ax.text((xB + xP) / 2.0, y_text, f"{imp:.1f}\\% lower optimized $\\gamma$",
-            ha='center', va='bottom', fontsize=7, fontweight='bold')
-
-    ax.set_ylabel(r"$H_\infty$ Performance Level $\gamma$", fontsize=8)
-    ax.set_ylim(0, y_line * 1.15)
-
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    ax.yaxis.grid(True, linestyle='--', linewidth=0.4, color='gray', alpha=0.3, zorder=0)
-    ax.set_axisbelow(True)
-
-    save_pub_figure(fig, out_dir, stem, formats=syn.fig_formats, dpi_png=600)
-    plt.close(fig)
 
 
 # =========================================================
 # Plotting utilities
 # =========================================================
-def plot_fusion_mechanism_and_histogram(
-        bounds: ParamBounds,
-        syn: SynthesisParams,
-        Psi: np.ndarray,
-        p_center: Dict[str, float],
-        p_true_source: Dict[str, float],
-        vertices_all: List[Dict[str, object]],
-        out_dir: str,
-        param_pair: Tuple[str, str] = ("Jx", "sigma_t"),
-        suffix: str = ""
-):
-    import matplotlib.patches as patches
-
-    x_name, y_name = param_pair
-    print(f"    Plotting 2D slice: {x_name} vs {y_name} ...")
-
-    label_map = {
-        "sigma_t": r"Thrust Coeff. $\sigma_t$",
-        "Jx": r"Inertia $J_x$ (kg$\cdot$m$^2$)",
-        "Jy": r"Inertia $J_y$ (kg$\cdot$m$^2$)",
-        "Jz": r"Inertia $J_z$ (kg$\cdot$m$^2$)",
-        "kx": r"Drag Coeff. $k_x$",
-        "ky": r"Drag Coeff. $k_y$",
-        "kz": r"Drag Coeff. $k_z$",
-        "kp": r"Gain/Damp $k_p$",
-        "kq": r"Gain/Damp $k_q$",
-        "kr": r"Gain/Damp $k_r$",
-    }
-
-    x_range = getattr(bounds, x_name)
-    y_range = getattr(bounds, y_name)
-
-    margin_x = (x_range[1] - x_range[0]) * 0.2
-    margin_y = (y_range[1] - y_range[0]) * 0.2
-
-    if margin_x < 1e-9: margin_x = 0.01
-    if margin_y < 1e-9: margin_y = 0.01
-
-    x_grid = np.linspace(x_range[0] - margin_x, x_range[1] + margin_x, 30)
-    y_grid = np.linspace(y_range[0] - margin_y, y_range[1] + margin_y, 30)
-    X, Y = np.meshgrid(x_grid, y_grid)
-
-    Z_score = np.zeros_like(X)
-
-    Cc, Dc = build_performance_matrices(syn)
-    Ts, g = syn.Ts, syn.g
-
-    for i in range(X.shape[0]):
-        for j in range(X.shape[1]):
-            p_temp = p_center.copy()
-            p_temp[x_name] = X[i, j]
-            p_temp[y_name] = Y[i, j]
-
-            A, B, S_c = build_vertex_matrices(p_temp, Ts, g)
-            Delta = np.block([[A, B], [Cc, Dc]])
-
-            s_raw = compute_vertex_score_scalar(Delta, Psi, mode="lambda_max")
-            Z_score[i, j] = s_raw
-    sizes = set_publication_style(context="paper", column="single")
-    fig1, ax1 = plt.subplots(figsize=(4.5, 3.5), constrained_layout=True)
-
-    cmap = plt.cm.RdBu_r
-
-    levels = np.linspace(np.min(Z_score), np.max(Z_score), 20)
-    cf = ax1.contourf(X, Y, Z_score, levels=levels, cmap=cmap, alpha=0.8, extend='both')
-
-    if np.min(Z_score) < 0 < np.max(Z_score):
-        ax1.contour(X, Y, Z_score, levels=[0], colors='green', linewidths=2.0, linestyles='--')
-
-    rect = patches.Rectangle(
-        (x_range[0], y_range[0]),
-        x_range[1] - x_range[0],
-        y_range[1] - y_range[0],
-        linewidth=2, edgecolor='black', facecolor='none', linestyle='-', label=r'$\mathcal{U}_{\mathrm{prior}}$'
-    )
-    ax1.add_patch(rect)
-
-    ax1.scatter(p_true_source[x_name], p_true_source[y_name], c='yellow', edgecolors='black', s=100, marker='*',
-                zorder=10, label=r'True Plant')
-
-    ax1.set_xlabel(label_map.get(x_name, x_name))
-    ax1.set_ylabel(label_map.get(y_name, y_name))
-    ax1.set_title(f"Fusion Geometry: {x_name} vs {y_name}")
-
-    cbar = fig1.colorbar(cf, ax=ax1)
-    # this field is the RAW data-inconsistency score s_i^raw (not the processed s_i).
-    cbar.set_label(r"Raw inconsistency score $s_i^{\mathrm{raw}}$")
-
-    ax1.legend(loc='upper right', frameon=True, facecolor='white', framealpha=0.9)
-
-    fname = f"Exp1_Geometry_{x_name}_vs_{y_name}{suffix}"
-    save_pub_figure(fig1, out_dir, fname, formats=("pdf", "png"))
-    plt.close(fig1)
-
-def check_selected_polytope_covers_near_ellipsoid(
-        verts_sel,
-        bounds,
-        syn,
-        Psi_data,
-        *,
-        tau,
-        score_mode="lambda_max",
-        n_samples=3000,
-        max_checked=200,
-        lp_tol=1e-6,
-        seed=0,
-):
-    """
-
-
-    """
-    rng = np.random.default_rng(int(seed))
-
-    D_sel = np.vstack([np.asarray(v["Delta"], dtype=float).reshape(1, -1) for v in verts_sel])  # (K, m)
-    V = D_sel.T  # (m, K)
-    m, K = V.shape
-
-    Vw, mu, sig = _affine_whiten_from_columns(V)
-
-    keys = list(bounds.__dataclass_fields__.keys())
-
-    def sample_param_dict():
-        p = {}
-        for k in keys:
-            lo, hi = getattr(bounds, k)
-            p[k] = float(rng.uniform(lo, hi))
-        return p
-
-    def sraw_and_delta(p):
-        A, B, _ = build_vertex_matrices(p, syn.Ts, syn.g)
-        Cc, Dc = build_performance_matrices(syn)
-        Delta = np.block([[A, B],
-                          [Cc, Dc]])
-        s_raw = float(compute_vertex_score_scalar(Delta, Psi_data, mode=score_mode))
-        return s_raw, Delta
-
-    X_cons = []
-    for _ in range(int(n_samples)):
-        p = sample_param_dict()
-        s_raw, Delta = sraw_and_delta(p)
-        if s_raw <= float(tau):
-            x = np.asarray(Delta, dtype=float).reshape(-1, 1)  # (m,1)
-            xw = (x - mu) / sig
-            X_cons.append(xw.reshape(-1))
-
-    n_cons = len(X_cons)
-    if n_cons == 0:
-        print(f"[HullCheck] No samples found with s_raw<=tau ({tau:.3e}). "
-              f"Try increasing n_samples or tau.")
-        return
-
-    idx = np.arange(n_cons)
-    rng.shuffle(idx)
-    idx = idx[:min(int(max_checked), n_cons)]
-
-    def inside_convex_hull_lp(xw: np.ndarray) -> Tuple[bool, float]:
-        """
-        min t  s.t.  ||Vw a - xw||_inf <= t, sum(a)=1, a>=0, t>=0
-        """
-        xw = np.asarray(xw, dtype=float).reshape(m)
-
-        c = np.zeros(K + 1)
-        c[-1] = 1.0  # min t
-
-        A_ub = np.zeros((2 * m, K + 1))
-        b_ub = np.zeros(2 * m)
-
-        # Vw a - t <= xw
-        A_ub[0:m, 0:K] = Vw
-        A_ub[0:m, K] = -1.0
-        b_ub[0:m] = xw
-
-        # -Vw a - t <= -xw
-        A_ub[m:2 * m, 0:K] = -Vw
-        A_ub[m:2 * m, K] = -1.0
-        b_ub[m:2 * m] = -xw
-
-        A_eq = np.zeros((1, K + 1))
-        A_eq[0, 0:K] = 1.0
-        b_eq = np.array([1.0])
-
-        bounds_lp = [(0.0, None)] * K + [(0.0, None)]
-
-        res = linprog(
-            c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
-            bounds=bounds_lp, method="highs"
-        )
-        if res.status != 0 or res.x is None:
-            return False, float("inf")
-        t = float(res.x[-1])
-        return (t <= float(lp_tol)), t
-
-    inside = 0
-    t_list = []
-    for j in idx:
-        ok, t = inside_convex_hull_lp(X_cons[j])
-        t_list.append(t)
-        if ok:
-            inside += 1
-
-    t_list = np.asarray(t_list, dtype=float)
-    cover_ratio = inside / float(len(idx))
-
-    print(
-        f"[HullCheck] (Delta-space) tau={tau:.3e}, sampled={n_samples}, consistent={n_cons} "
-        f"(~{100.0*n_cons/float(n_samples):.2f}%), checked={len(idx)} | "
-        f"inside={inside} ({100.0*cover_ratio:.1f}%), "
-        f"t_inf: median={np.median(t_list):.2e}, max={np.max(t_list):.2e}, tol={lp_tol:.1e}"
-    )
 
 # =========================================================
 # Plotting utilities
@@ -2917,8 +2396,8 @@ def synthesize_controllers_for_stage3(
           f"violations = {info_Wc['n_violate_vertex']}/{info_Wc['n_vertices']}  (formal)")
     print(f"  [W_c verify] interior   : min PSD gap = {info_Wc['min_psd_gap_interior']:.3e}, "
           f"violations = {info_Wc['n_violate_interior']}/{info_Wc['n_internal_samples']}  (sanity)")
-    print(f"  [W_c generator] old alpha={info_Wc['old_vertex_only_alpha']:.6e}, "
-          f"new alpha={info_Wc['alpha']:.6e}, changed={info_Wc['generator_changed_bound']}, "
+    print(f"  [W_c generator diagnostic] endpoint alpha={info_Wc['alpha']:.6e}, "
+          f"generator max eig={info_Wc['generator_max_eig']:.6e}, "
           f"generator PSD gap={info_Wc['generator_psd_gap']:.3e}")
 
     # --- structured sampled-state residual upper bound W_E ---
@@ -2945,11 +2424,6 @@ def synthesize_controllers_for_stage3(
         batch, syn, bounds, W_c, verbose=True
     )
 
-    # use FIG4_PAIRS as the single source of truth for plot output names.
-    plot_pairs = list(FIG4_PAIRS)
-
-    print(f"\nGenerating {len(plot_pairs)} geometric fusion plots...")
-
     verts_all = build_all_vertices_and_scores(
         bounds, syn, Psi,
         score_mode=score_mode,
@@ -2957,84 +2431,11 @@ def synthesize_controllers_for_stage3(
         seed=syn.seed + 1234
     )
 
-    for pair in plot_pairs:
-        plot_fusion_mechanism_and_histogram(
-            bounds=bounds,
-            syn=syn,
-            Psi=Psi,
-            p_center=p_nom,
-            p_true_source=p_data_source,
-            vertices_all=verts_all,
-            out_dir=syn.fig_out_dir,
-            param_pair=pair,
-            suffix=""
-        )
-
-    sizes = set_publication_style(context="paper", column="single")
-    s_values = np.array([v["s"] for v in verts_all], dtype=float)
-    s_true = selfcheck_print_param_sraw(
-        p_data_source, syn, Psi,
-        label="(hist) p_data_source",
-        score_mode=score_mode,
-    )
-
-    fig_hist, ax_hist = plt.subplots(figsize=sizes["single"], constrained_layout=True)
-    _setup_axes(ax_hist)
-
-    s_pos = s_values[s_values > 0]
-    use_log = False
-    if len(s_pos) > 0 and float(np.max(s_pos)) > 10 * float(np.min(s_pos) + 1e-12):
-        log_lo = np.log10(max(float(np.min(s_pos)), 1e-6))
-        log_hi = np.log10(float(np.max(s_pos)) * 1.05)
-        if log_hi > log_lo:
-            bins_arr = np.logspace(log_lo, log_hi, 35)
-            ax_hist.set_xscale("log")
-            use_log = True
-        else:
-            bins_arr = 30
-    else:
-        bins_arr = 30
-
-    n_h, bins_h, patches_h = ax_hist.hist(
-        s_values, bins=bins_arr, color='#0072B2', edgecolor='black',
-        linewidth=0.5, alpha=0.8,
-    )
-
-    pct25 = float(np.percentile(s_values, 25))
-    ax_hist.axvline(pct25, color='#009E73', linestyle='--', linewidth=1.2,
-                    label=f'25th pctl ($s={pct25:.1f}$)')
-
-    if np.isfinite(s_true):
-        ax_hist.axvline(s_true, color='#D55E00', linestyle='-', linewidth=1.5,
-                        label=f'True plant ($s={s_true:.2f}$)')
-
-    ax_hist.set_xlabel(r"Raw consistency score $s_i$" + (" (log scale)" if use_log else ""))
-    ax_hist.set_ylabel("Number of vertices")
-    ax_hist.legend(frameon=True, facecolor='white', framealpha=0.9, fontsize=6.5, loc='upper right')
-
-    save_pub_figure(fig_hist, syn.fig_out_dir, "Exp2_Score_Histogram_Global", formats=("pdf", "png"))
-    plt.close(fig_hist)
-
-    print("  Plots generated")
-
-    raw_s_values = np.array([v["s"] for v in verts_all])
+    raw_s_values = np.array([v["s"] for v in verts_all], dtype=float)
     print(
-        f"\nScore statistics: n={len(raw_s_values)}, min={raw_s_values.min():.4e}, max={raw_s_values.max():.4e}, mean={raw_s_values.mean():.4e}")
-    hist, bin_edges = np.histogram(raw_s_values, bins=10)
-    print(f"  Histogram: {hist}\n")
-    # ===== Self-check: true plant / nominal plant raw score position =====
-    selfcheck_print_param_sraw(
-        p_data_source, syn, Psi,
-        label="p_data_source (data-generating plant)",
-        score_mode=score_mode,
-        compare_scores=raw_s_values
-    )
-
-    selfcheck_print_param_sraw(
-        p_nom, syn, Psi,
-        label="p_nom (nominal center)",
-        score_mode=score_mode,
-        compare_scores=raw_s_values
+        f"\nScore statistics: n={len(raw_s_values)}, "
+        f"min={raw_s_values.min():.4e}, max={raw_s_values.max():.4e}, "
+        f"mean={raw_s_values.mean():.4e}"
     )
 
     # ===== Score processing for score-weighted surrogate relaxation =====
@@ -3106,7 +2507,7 @@ def synthesize_controllers_for_stage3(
     gamma_prop = float(np.sqrt(max(float(sol_prop["gamma2"][0]), 0.0)))
 
 
-    # ===== Baseline B (NoRelax): same vertices as Proposed, s=0 =====
+    # ===== Matched-active-set ablation: proposed active set, s=0 =====
     verts_baseB = []
     for v in verts_common:
         vv = dict(v)
@@ -3205,15 +2606,6 @@ def main_stage3_time_domain_validation_A_C(
 
     imp_B = (out['gamma_baselineB'] - out['gamma_proposed']) / out['gamma_baselineB'] * 100
     print(f"  Improvement vs BaselineB: {imp_B:.2f}%")
-
-    print("\nGenerating gamma comparison chart...")
-    plot_gamma_comparison_nature(
-        gamma_baseB=float(out['gamma_baselineB']),
-        gamma_prop=float(out['gamma_proposed']),
-        out_dir=syn.fig_out_dir,
-        syn=syn,
-        stem="FigS3_Gamma_Comparison"
-    )
 
     rng = np.random.default_rng(syn.seed + 555)
     print("\nUsing data source parameters with 5% noise for validation")

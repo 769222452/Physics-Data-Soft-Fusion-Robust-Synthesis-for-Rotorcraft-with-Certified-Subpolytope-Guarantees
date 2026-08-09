@@ -1,0 +1,39 @@
+{
+  "analysis": "generator raw-QMI score from saved artifacts",
+  "formula": "lambda_max(sym([Theta_gen I_32] Psi [Theta_gen^T; I_32]))",
+  "exact_raw_qmi_test": "score <= 0",
+  "near_boundary_reporting_tolerance": 1e-08,
+  "batch_regenerated": false,
+  "solver_called": false,
+  "simulation_rerun": false,
+  "scenarios": [
+    {
+      "scenario": "Standard",
+      "source_file": "results/raw/standard_data_fusion_diagnostics.npz",
+      "generator_raw_qmi_score": 9.667930374294771e-11,
+      "status": "Numerically near boundary (positive)",
+      "passes_exact_nonpositive_test": false,
+      "n_raw": 0,
+      "n_anchor": 103,
+      "qmi_matrix_norm_2": 150.10463455725366,
+      "relative_positive_residual": 6.440794051969915e-13,
+      "positive_eigenvalue_count": 10,
+      "positive_eigenvalue_count_above_reporting_tolerance": 0,
+      "endpoint_score_max_abs_reproduction_error": 0.0
+    },
+    {
+      "scenario": "Expanded",
+      "source_file": "results/raw/expanded_data_fusion_diagnostics.npz",
+      "generator_raw_qmi_score": 4.668459817884493e-11,
+      "status": "Numerically near boundary (positive)",
+      "passes_exact_nonpositive_test": false,
+      "n_raw": 0,
+      "n_anchor": 103,
+      "qmi_matrix_norm_2": 150.5483545039729,
+      "relative_positive_residual": 3.1009703382452414e-13,
+      "positive_eigenvalue_count": 8,
+      "positive_eigenvalue_count_above_reporting_tolerance": 0,
+      "endpoint_score_max_abs_reproduction_error": 0.0
+    }
+  ]
+}

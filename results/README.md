@@ -1,27 +1,25 @@
-# Released numerical artifacts
+# Released Numerical Artifacts
 
-The files in this directory are the curated outputs of the clean simulation
-campaign completed on 2026-07-12. They correspond to the values reported in
-the manuscript. The exact software and solver environment is recorded in
+This directory contains the curated output of the simulation campaign
+completed on 2026-07-12 and the deterministic post-processing applied to the
+saved files. The software and solver environment is recorded in
 `../rerun_environment.txt`.
 
-## Directory map
+## Directory Map
 
-- `figures/time_domain_standard/`: five standard-range manuscript panels.
-- `figures/time_domain_expanded/`: five expanded-range manuscript panels.
-- `figures/monte_carlo/`: the two Monte Carlo figures used in the manuscript.
-- `tables/time_domain_*_metrics.csv`: time-domain metrics before display
-  rounding.
-- `tables/fusion_ablation_monte_carlo_summary.csv`: the 2000-trial fusion
-  ablation summary.
-- `tables/vertex_selection_ablation_by_seed.csv`: all 120 per-seed
-  vertex-selection records.
-- `tables/vertex_selection_table8_summary.csv`: the 24 aggregated Table 8
-  rows before display rounding.
-- `tables/vertex_selection_table8_rows.tex`: the corresponding LaTeX row
-  fragment.
-- `raw/`: machine-readable batches, vertices, scores, controller variables,
-  trajectories, seeds, solver diagnostics, and Monte Carlo outcomes.
+- `figures/time_domain_standard/`: four standard-range time-domain figures.
+- `figures/time_domain_expanded/`: four expanded-range time-domain figures.
+- `figures/monte_carlo/`: the survivor-conditioned Monte Carlo boxplot used in
+  the manuscript.
+- `tables/`: time-domain metrics, the fusion-ablation summary, all per-seed
+  vertex-selection records, and the aggregated Table 8 rows.
+- `raw/`: batches, adopted vertices, scores, controller variables,
+  trajectories, random seeds, solver diagnostics, and Monte Carlo outcomes.
+- `score_hull_check/`: the manuscript-facing saved-solution certificate check.
+- `generator_qmi/`: the raw-QMI evaluation of the saved batch-generating
+  models.
+- `posthoc_statistics/`: confidence intervals and paired comparisons computed
+  from the saved Monte Carlo trials.
 
 All NPZ files can be loaded without pickle:
 
@@ -33,11 +31,15 @@ data = np.load("results/raw/stage3_time_domain_results.npz",
 ```
 
 In the archived data-fusion files, `score_n_consistent` is a legacy name for
-the zero processed score count. The two unambiguous counts are obtained from
+the zero processed-score count. The raw and processed counts are obtained from
 `sum(raw_scores <= 0)` and `sum(processed_scores == 0)`, respectively. Current
-source runs additionally store these as `score_n_raw_consistent` and
+full runs also store `score_n_raw_consistent` and
 `score_n_zero_processed`.
 
-The simulation campaign contains no flight-test, hardware, or personally
-identifiable data. SHA-256 checksums for all released results and reference
-logs are listed in `manifest.sha256`.
+The post-processing directories were generated only from the released NPZ
+files. They do not represent a new controller synthesis, offline-data
+generation, time-domain simulation, or Monte Carlo campaign. The repository
+contains no flight-test, hardware, or personally identifiable data.
+
+SHA-256 checksums for every released result and reference log are listed in
+`manifest.sha256`.

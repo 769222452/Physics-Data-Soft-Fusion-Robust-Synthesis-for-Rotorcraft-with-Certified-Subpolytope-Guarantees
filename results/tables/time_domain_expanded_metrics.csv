@@ -1,4 +1,4 @@
 Controller,gamma,RMSE_pos,RMSE_excess,IAE_pos,IAE_excess,peak_pos,peak_excess,settle_mean_excess,settle_worst_excess,du_peak,uabs_peak,energy_uc,energy_uabs,duty_abs,duty_normsat,duty_ratesat,rho
 Proposed,4.8017,0.3441,0.1996,8.641,5.455,1.061,0.4436,7.35,14,0.2046,0.254,0.04422,0.1381,0,0,0,0.8542
-Baseline B,8.3639,0.4822,0.3364,13.23,9.265,1.138,0.6875,7.35,14,0.1421,0.2663,0.02338,0.134,0,0,0,0.8541
+Matched-active-set unrelaxed ablation,8.3639,0.4822,0.3364,13.23,9.265,1.138,0.6875,7.35,14,0.1421,0.2663,0.02338,0.134,0,0,0,0.8541
 Nominal LQR,nan,0.4354,0.2969,11.73,8.157,1.098,0.6563,7.35,14,0.2171,0.2933,0.03578,0.1519,0,0,0,0.8211

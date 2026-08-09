@@ -1,0 +1,9 @@
+{
+  "script": "src/posthoc_score_hull_check.py",
+  "synthesis_rerun": false,
+  "sfps_ice_rerun": false,
+  "time_domain_rerun": false,
+  "monte_carlo_rerun": false,
+  "offline_batch_regenerated": false,
+  "controller_modified": false
+}

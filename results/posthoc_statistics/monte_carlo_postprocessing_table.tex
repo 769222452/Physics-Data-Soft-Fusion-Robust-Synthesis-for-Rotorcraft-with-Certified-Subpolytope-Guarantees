@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Post-processing of the saved paired Monte Carlo trials.}
+\label{tab:mc_postprocessing}
+\footnotesize
+\begin{tabular}{lrr}
+\toprule
+Method & Success rate & Wilson 95\% interval \\
+\midrule
+Nominal LQR & 100.0\% & [99.8, 100.0]\% \\
+Prior-only robust baseline & 100.0\% & [99.8, 100.0]\% \\
+Matched-active-set unrelaxed ablation & 100.0\% & [99.8, 100.0]\% \\
+Thresholded selection & 83.0\% & [81.2, 84.5]\% \\
+Top-budget selection & 79.8\% & [78.0, 81.5]\% \\
+Data-only LQR & 100.0\% & [99.8, 100.0]\% \\
+Proposed & 83.8\% & [82.1, 85.3]\% \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\begin{minipage}{0.96\linewidth}\scriptsize Exact McNemar comparison of Proposed and Matched-active-set unrelaxed ablation: 0 proposed-only and 324 baseline-only successes, $p=5.85\times10^{-98}$. Across 1676 trials successful for both, the mean paired RMSE difference (Proposed minus baseline) is -0.0363 m with a percentile bootstrap 95\% interval [-0.0369, -0.0357] m. The RMSE comparison is survivor-conditioned.\end{minipage}
+\end{table}
