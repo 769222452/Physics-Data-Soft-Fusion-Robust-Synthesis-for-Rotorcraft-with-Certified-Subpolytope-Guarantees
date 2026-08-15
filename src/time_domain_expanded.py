@@ -2094,7 +2094,7 @@ def plot_stage3_A_C_publication(
         du = np.linalg.norm(increment_to_normalized(sim["u_c"]), axis=0)
         ax.plot(t[:-1], du, linestyle=linestyle.get(name, "-"), label=display_name.get(name, name))
     ax.axhline(1.0, linestyle=":", linewidth=1.0, color="black",
-               label="implemented unit increment limit")
+               label="synthesis unit-norm threshold")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
     if syn.fig_show_titles:
@@ -2249,7 +2249,7 @@ def plot_stage3_story_figure(
         ax_du.plot(t[:-1], du, linestyle=LS.get(name, "-"),
                    label=PRETTY.get(name, name))
     ax_du.axhline(1.0, linestyle=":", linewidth=1.0, color="black",
-                  label="implemented unit increment limit")
+                  label="synthesis unit-norm threshold")
     ax_du.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
     ax_du.legend(frameon=False, loc="best", ncols=2, fontsize=6)
 

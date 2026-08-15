@@ -144,7 +144,7 @@ def plot_archive(input_path: Path, output_dir: Path, suffix: str) -> None:
             linestyle=":",
             linewidth=1.0,
             color="black",
-            label="implemented unit increment limit",
+            label="synthesis unit-norm threshold",
         )
         axis.set_xlabel("Time (s)")
         axis.set_ylabel(r"$\|\bar u_c^{\mathrm{act}}\|_2$")
